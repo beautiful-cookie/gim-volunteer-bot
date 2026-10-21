@@ -1,0 +1,11 @@
+pandas
+openpyxl
+pyyaml
+pydantic>=2
+httpx
+scipy
+scikit-learn
+vkbottle>=4.11
+loguru
+streamlit
+plotly

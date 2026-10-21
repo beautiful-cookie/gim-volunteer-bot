@@ -1,0 +1,20 @@
+# Ключи доступа: GigaChat, ВКонтакте, пароль дашборда
+.env
+
+# Персональные данные кандидатов и всё, что из них получено (анкеты, ответы LLM, база бота, логи).
+# В репозиторий не попадают никогда — передавайте их отдельно, см. data/README.md
+data/*
+!data/README.md
+
+# Служебные файлы vkbottle (состояние Long Poll сообщества)
+.vkbottle/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Streamlit и Excel
+.streamlit/secrets.toml
+~$*

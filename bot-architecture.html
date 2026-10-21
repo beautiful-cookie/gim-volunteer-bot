@@ -1,0 +1,987 @@
+<title>Бот отбора волонтёров ГИМ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Forum&family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: одна колонка проектного документа шириной до 1080px; схемы и макет дашборда выходят на всю ширину колонки, текст держится около 68 знаков */
+:root {
+  --bg: #F3F4F6;
+  --surface: #FFFFFF;
+  --sunken: #E9EBEF;
+  --ink: #1A1D24;
+  --muted: #5A6170;
+  --line: #D7DBE2;
+  --line-strong: #9AA2B0;
+  --brick: #9C2F27;
+  --brick-soft: #F5E4E1;
+  --vk: #2A64B5;
+  --vk-soft: #E2ECF8;
+  --good: #2F7A4C;
+  --good-soft: #E1F1E7;
+  --warn: #9A600F;
+  --warn-soft: #FBEFD9;
+  --bad: #C2362E;
+  --bad-soft: #FBE3E1;
+  --f-display: "Forum", "Times New Roman", Georgia, serif;
+  --f-body: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121419; --surface: #1A1D24; --sunken: #22262F; --ink: #E6E8EC; --muted: #9BA2AF;
+    --line: #2D323C; --line-strong: #5B6372; --brick: #E07A6C; --brick-soft: #3A2220;
+    --vk: #7FB0EE; --vk-soft: #1C2A3E; --good: #6CC18E; --good-soft: #1B3125;
+    --warn: #E3AE5A; --warn-soft: #3A2D16; --bad: #F07F76; --bad-soft: #3D1F1D;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121419; --surface: #1A1D24; --sunken: #22262F; --ink: #E6E8EC; --muted: #9BA2AF;
+  --line: #2D323C; --line-strong: #5B6372; --brick: #E07A6C; --brick-soft: #3A2220;
+  --vk: #7FB0EE; --vk-soft: #1C2A3E; --good: #6CC18E; --good-soft: #1B3125;
+  --warn: #E3AE5A; --warn-soft: #3A2D16; --bad: #F07F76; --bad-soft: #3D1F1D;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 72px; }
+h1, h2 { font-family: var(--f-display); font-weight: 400; text-wrap: balance; margin: 0; letter-spacing: 0.01em; }
+h1 { font-size: clamp(36px, 6vw, 58px); line-height: 1.05; }
+h2 { font-size: clamp(28px, 4vw, 38px); line-height: 1.1; }
+h3 { font-size: 18px; font-weight: 600; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.prose { max-width: 68ch; display: grid; gap: 12px; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--f-mono); font-size: 0.86em; }
+.num { font-variant-numeric: tabular-nums; }
+a { color: var(--vk); }
+a:focus-visible, button:focus-visible, input:focus-visible, tr:focus-visible { outline: 2px solid var(--vk); outline-offset: 2px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brick); }
+section { display: grid; gap: 24px; scroll-margin-top: 16px; }
+.sec-head { display: grid; gap: 8px; max-width: 72ch; }
+
+/* header */
+header.top { padding-block: 40px 0; display: grid; gap: 20px; }
+.meta-line { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--muted); }
+nav.toc { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 4px; }
+nav.toc a { font-size: 14px; text-decoration: none; color: var(--ink); padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+nav.toc a:hover { border-color: var(--line-strong); }
+
+/* findings */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.stat { background: var(--surface); padding: 16px 18px; display: grid; gap: 4px; align-content: start; }
+.stat b { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat span { font-size: 13px; color: var(--muted); line-height: 1.35; }
+.auc { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 14px; }
+.auc-group { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding-top: 6px; }
+.auc-row { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr) 44px; gap: 12px; align-items: center; font-size: 14px; }
+.auc-track { position: relative; height: 18px; background: var(--sunken); border-radius: 3px; }
+.auc-bar { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--line-strong); }
+.auc-bar.hi { background: var(--brick); }
+.auc-bar.ok { background: var(--vk); }
+.auc-coin { position: absolute; top: -4px; bottom: -4px; left: 50%; border-left: 2px dashed var(--ink); opacity: 0.55; }
+.auc-axis { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr) 44px; gap: 12px; font-size: 12px; color: var(--muted); }
+.auc-ticks { position: relative; height: 16px; }
+.auc-ticks span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+.callout { border-left: 3px solid var(--brick); background: var(--brick-soft); padding: 14px 18px; border-radius: 0 8px 8px 0; max-width: 78ch; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--sunken); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+
+/* diagram */
+.diagram { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.diagram svg { display: block; min-width: 780px; width: 100%; height: auto; }
+.n-box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
+.n-box.vk { fill: var(--vk-soft); stroke: var(--vk); }
+.n-box.llm { fill: var(--brick-soft); stroke: var(--brick); }
+.n-box.db { fill: var(--sunken); stroke: var(--ink); }
+.n-t { fill: var(--ink); font: 600 14px var(--f-body); }
+.n-s { fill: var(--muted); font: 400 12px var(--f-body); }
+.n-step { fill: var(--brick); font: 600 11px var(--f-mono); }
+.edge { stroke: var(--line-strong); stroke-width: 1.6; fill: none; }
+.edge.fb { stroke: var(--brick); stroke-dasharray: 5 4; }
+.e-l { fill: var(--muted); font: 400 11px var(--f-body); }
+.arrowhead { fill: var(--line-strong); }
+.arrowhead.fb { fill: var(--brick); }
+
+.stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.stack-item { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.stack-item .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.stack-item .v { font-weight: 600; }
+.stack-item .why { font-size: 14px; color: var(--muted); }
+
+/* dialog */
+.dialog { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: st; }
+.steps li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding-block: 10px; border-bottom: 1px solid var(--line); counter-increment: st; }
+.steps li:last-child { border-bottom: 0; }
+.steps li::before { content: counter(st); font: 600 13px var(--f-mono); color: var(--brick); width: 30px; height: 30px; border: 1.5px solid var(--brick); border-radius: 50%; display: grid; place-items: center; }
+.steps .s-body { display: grid; gap: 4px; }
+.steps .s-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.steps .s-head b { font-weight: 600; }
+.steps .s-txt { font-size: 14px; color: var(--muted); }
+.tag { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+.tag.btn { background: var(--vk-soft); color: var(--vk); }
+.tag.txt { background: var(--sunken); color: var(--muted); border-color: var(--line); }
+.tag.llm { background: var(--brick-soft); color: var(--brick); }
+.tag.gate { background: var(--bad-soft); color: var(--bad); }
+.tag.new { background: var(--good-soft); color: var(--good); }
+
+.phone { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; display: grid; }
+.phone-top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--brick); color: var(--surface); display: grid; place-items: center; font: 400 16px var(--f-display); flex: none; }
+.phone-top b { display: block; font-size: 14px; }
+.phone-top span { font-size: 12px; color: var(--muted); }
+.chat { padding: 14px; display: grid; gap: 10px; background: var(--bg); }
+.msg { max-width: 86%; padding: 9px 12px; border-radius: 14px; font-size: 14px; line-height: 1.45; }
+.msg.bot { background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; justify-self: start; }
+.msg.me { background: var(--vk); color: var(--surface); border-bottom-right-radius: 4px; justify-self: end; }
+.msg .step { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.msg.llm-msg { border-color: var(--brick); }
+.msg.llm-msg .step { color: var(--brick); }
+.kb { display: flex; flex-wrap: wrap; gap: 6px; justify-self: start; max-width: 92%; }
+.kb span { font-size: 13px; padding: 6px 12px; border-radius: 8px; background: var(--vk-soft); color: var(--vk); font-weight: 500; }
+.kb span.on { background: var(--vk); color: var(--surface); }
+.phone-note { font-size: 12px; color: var(--muted); padding: 10px 14px; border-top: 1px solid var(--line); }
+
+.triggers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.trig { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; font-size: 14px; }
+.trig .if { font-weight: 600; }
+.trig .then { color: var(--muted); }
+
+/* scoring */
+.wbar { height: 8px; border-radius: 4px; background: var(--brick); display: block; margin-top: 6px; }
+.crit-name { font-weight: 600; white-space: nowrap; }
+.formula { font-family: var(--f-mono); font-size: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; display: grid; gap: 6px; overflow-x: auto; }
+.formula .c { color: var(--muted); }
+.flags { display: flex; flex-wrap: wrap; gap: 8px; }
+.flag { font-size: 13px; padding: 4px 10px; border-radius: 6px; font-weight: 500; }
+.flag.red { background: var(--bad-soft); color: var(--bad); }
+.flag.yel { background: var(--warn-soft); color: var(--warn); }
+.flag.inf { background: var(--vk-soft); color: var(--vk); }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: grid; gap: 10px; align-content: start; }
+.panel ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 15px; }
+
+/* budget */
+.budget { display: grid; gap: 10px; }
+.b-row { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 70px; gap: 12px; align-items: center; font-size: 14px; }
+.b-track { height: 16px; background: var(--sunken); border-radius: 3px; position: relative; }
+.b-fill { position: absolute; inset: 0 auto 0 0; border-radius: 3px; }
+
+/* dashboard mockup */
+.dash { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; }
+.dash-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--sunken); }
+.dash-bar .ttl { font: 400 20px var(--f-display); }
+.demo-chip { font-size: 12px; font-weight: 600; color: var(--warn); background: var(--warn-soft); padding: 3px 9px; border-radius: 999px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 16px 0; border-bottom: 1px solid var(--line); }
+.tabs button { font: 500 14px var(--f-body); color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px 10px; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brick); }
+.tabs button:hover { color: var(--ink); }
+.pane { padding: 18px 16px 20px; display: grid; gap: 18px; }
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.kpi { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; }
+.kpi b { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi span { font-size: 12px; color: var(--muted); }
+.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.chart { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.chart h4 { margin: 0; font-size: 13px; font-weight: 600; }
+.chart svg { width: 100%; height: auto; display: block; }
+.ax { stroke: var(--line); stroke-width: 1; }
+.ax-t { fill: var(--muted); font: 400 10px var(--f-body); }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+
+.weights { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.weights label { display: grid; gap: 4px; font-size: 13px; }
+.weights .wl { display: flex; justify-content: space-between; gap: 6px; }
+.weights .wl b { font-variant-numeric: tabular-nums; }
+.weights input { width: 100%; accent-color: var(--brick); }
+.rank td, .rank th { padding: 8px 10px; white-space: nowrap; }
+.rank tbody tr { cursor: pointer; }
+.rank tbody tr:hover { background: var(--sunken); }
+.ibar { display: inline-block; width: 60px; height: 6px; background: var(--sunken); border-radius: 3px; vertical-align: middle; margin-left: 8px; position: relative; overflow: hidden; }
+.ibar i { position: absolute; inset: 0 auto 0 0; background: var(--brick); }
+.sc { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; font-weight: 600; font-size: 13px; }
+.sc-3 { background: var(--good-soft); color: var(--good); }
+.sc-2 { background: var(--vk-soft); color: var(--vk); }
+.sc-1 { background: var(--warn-soft); color: var(--warn); }
+.sc-0 { background: var(--sunken); color: var(--muted); }
+.crit-mini { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.rank .flag { font-size: 11px; padding: 2px 7px; margin-right: 4px; }
+
+.card-grid { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.card-head .nm { font: 400 26px var(--f-display); }
+.pp { font-size: 14px; color: var(--muted); }
+.pp b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.quote { border-left: 2px solid var(--line-strong); padding-left: 10px; font-size: 14px; color: var(--muted); }
+.quote b { color: var(--ink); font-weight: 600; }
+.card-sel { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.card-sel select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+.empty { border: 1px dashed var(--line-strong); border-radius: 8px; padding: 18px; color: var(--muted); font-size: 14px; display: grid; gap: 6px; }
+
+.excel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; display: grid; align-content: start; }
+.sheet-name { font-size: 13px; font-weight: 600; padding: 8px 12px; background: var(--good-soft); color: var(--good); }
+.sheet-cols { padding: 10px 12px; font-size: 13px; color: var(--muted); }
+
+.plan { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: pl; }
+.plan li { counter-increment: pl; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.plan li::before { content: counter(pl); font: 400 26px var(--f-display); color: var(--brick); line-height: 1; }
+.plan b { display: block; }
+.plan span { font-size: 14px; color: var(--muted); }
+.sources { font-size: 14px; display: grid; gap: 4px; }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 860px) {
+  .dialog, .two, .card-grid { grid-template-columns: minmax(0, 1fr); }
+  .phone { position: static; }
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .weights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .charts { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stack, .triggers, .excel { grid-template-columns: minmax(0, 1fr); }
+  .auc-row, .auc-axis { grid-template-columns: minmax(0, 1fr) 40px; }
+  .auc-row .auc-lbl { grid-column: 1 / -1; }
+  .auc-axis > span:first-child { display: none; }
+  .b-row { grid-template-columns: minmax(0, 1fr) 60px; }
+  .b-row .b-lbl { grid-column: 1 / -1; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wrap { gap: 56px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Хакатон · кейс Государственного исторического музея</div>
+  <h1>Бот отбора волонтёров ГИМ</h1>
+  <p class="prose" style="font-size:18px">Проект архитектуры: VK-бот проводит кандидата через анкету и уточняющие вопросы, LLM пишет саммари и ставит баллы по критериям, куратор видит рейтинг, карточки и аналитику набора в дашборде и выгружает всё в Excel.</p>
+  <div class="meta-line"><span>Версия для обсуждения в команде</span><span>21 октября 2026</span><span>Данные: 112 анкет 2024–2025 гг.</span></div>
+  <nav class="toc" aria-label="Разделы">
+    <a href="#data">Что показали анкеты</a>
+    <a href="#arch">Архитектура</a>
+    <a href="#dialog">Сценарий диалога</a>
+    <a href="#scoring">Скоринг</a>
+    <a href="#model">Вероятность успеха</a>
+    <a href="#llm">Выбор LLM</a>
+    <a href="#dash">Дашборд</a>
+    <a href="#export">Выгрузка</a>
+    <a href="#plan">План работ</a>
+  </nav>
+</header>
+
+<!-- 1. DATA -->
+<section id="data">
+  <div class="sec-head">
+    <div class="eyebrow">Исходные данные</div>
+    <h2>Что показали анкеты</h2>
+    <p class="muted">Три листа таблиц («Очно 30.10», «Дистант 29.10», «Ответы на форму 2025») сведены в одну. Метрика ниже — AUC: 0,5 означает угадывание наугад, 1,0 — идеальное разделение.</p>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>112</b><span>анкет за осень 2024 и весну 2025</span></div>
+    <div class="stat"><b>45</b><span>кандидатов взяли в команду</span></div>
+    <div class="stat"><b>43</b><span>из них с известными часами активности</span></div>
+    <div class="stat"><b>ρ = 0,62</b><span>связь длины ответов с баллом куратора</span></div>
+  </div>
+  <div class="auc" role="figure" aria-label="AUC простых признаков">
+    <div class="auc-group">Что предсказывает приглашение на собеседование (n = 112)</div>
+    <div class="auc-row"><span class="auc-lbl">Суммарная длина ответов</span><div class="auc-track"><div class="auc-bar hi" style="width:86%"></div><div class="auc-coin"></div></div><b class="num">0,86</b></div>
+    <div class="auc-row"><span class="auc-lbl">Не первокурсник</span><div class="auc-track"><div class="auc-bar hi" style="width:78%"></div><div class="auc-coin"></div></div><b class="num">0,78</b></div>
+    <div class="auc-group">Что предсказывает активность ≥ 20 ч в год среди взятых (n = 43)</div>
+    <div class="auc-row"><span class="auc-lbl">Опыт в музее, архиве, экспедиции</span><div class="auc-track"><div class="auc-bar ok" style="width:64%"></div><div class="auc-coin"></div></div><b class="num">0,64</b></div>
+    <div class="auc-row"><span class="auc-lbl">Балл куратора 0–3</span><div class="auc-track"><div class="auc-bar" style="width:55%"></div><div class="auc-coin"></div></div><b class="num">0,55</b></div>
+    <div class="auc-row"><span class="auc-lbl">Суммарная длина ответов</span><div class="auc-track"><div class="auc-bar" style="width:51%"></div><div class="auc-coin"></div></div><b class="num">0,51</b></div>
+    <div class="auc-axis"><span></span><div class="auc-ticks"><span style="left:0%">0</span><span style="left:25%">0,25</span><span style="left:50%">0,5 · наугад</span><span style="left:75%">0,75</span><span style="left:100%">1</span></div><span></span></div>
+  </div>
+  <div class="callout prose">
+    <p><b>Вывод для метода.</b> Сейчас анкету оценивают в основном по объёму текста, а реальную активность волонтёра балл куратора почти не предсказывает. Поэтому модель учим на часах активности и удержании, а рубрики LLM оценивают конкретику ответа, а не его длину.</p>
+    <p class="muted">Меток пока 43, интервал неопределённости AUC около ±0,15. В листе 2025 года 8 ячеек «Длительность» содержат дату 02.05.2026 вместо числа — нужно уточнить у представителя.</p>
+  </div>
+</section>
+
+<!-- 2. ARCH -->
+<section id="arch">
+  <div class="sec-head">
+    <div class="eyebrow">Как устроена система</div>
+    <h2>Архитектура</h2>
+    <p class="muted">Синим отмечено то, что живёт во ВКонтакте, красным — языковая модель, серым — наши компоненты на сервере музея. Пунктир — обратная связь, на которой модель дообучается.</p>
+  </div>
+  <div class="diagram">
+    <svg viewBox="0 0 960 470" role="img" aria-label="Схема архитектуры бота">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ahf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead fb" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- edges -->
+      <line class="edge" x1="202" y1="66" x2="248" y2="66" marker-start="url(#ah)" marker-end="url(#ah)"/>
+      <line class="edge" x1="432" y1="66" x2="478" y2="66" marker-start="url(#ah)" marker-end="url(#ah)"/>
+      <line class="edge" x1="682" y1="66" x2="728" y2="66" marker-end="url(#ah)"/>
+      <line class="edge" x1="580" y1="104" x2="580" y2="188" marker-end="url(#ah)"/>
+      <text class="e-l" x="588" y="150">ответы, состояние</text>
+      <line class="edge" x1="340" y1="104" x2="340" y2="188" marker-end="url(#ah)"/>
+      <text class="e-l" x="348" y="150">уведомления</text>
+      <line class="edge" x1="682" y1="245" x2="728" y2="245" marker-start="url(#ah)" marker-end="url(#ah)"/>
+      <line class="edge" x1="835" y1="188" x2="835" y2="162" marker-end="url(#ah)"/>
+      <line class="edge" x1="835" y1="302" x2="835" y2="368" marker-end="url(#ah)"/>
+      <text class="e-l" x="843" y="340">открытые данные</text>
+      <line class="edge fb" x1="580" y1="302" x2="580" y2="368" marker-start="url(#ahf)" marker-end="url(#ahf)"/>
+      <text class="e-l" x="588" y="330">чтение рейтинга,</text>
+      <text class="e-l" x="588" y="344">решения куратора</text>
+      <line class="edge" x1="478" y1="406" x2="432" y2="406" marker-end="url(#ah)"/>
+      <line class="edge" x1="340" y1="264" x2="340" y2="368" marker-end="url(#ah)"/>
+      <text class="e-l" x="348" y="320">карточка анкеты</text>
+      <line class="edge" x1="248" y1="406" x2="202" y2="406" marker-end="url(#ah)"/>
+
+      <!-- row 1 -->
+      <rect class="n-box vk" x="20" y="30" width="180" height="72" rx="8"/>
+      <text class="n-t" x="36" y="60">Кандидат</text>
+      <text class="n-s" x="36" y="80">сообщения сообществу ВК</text>
+
+      <rect class="n-box vk" x="250" y="30" width="180" height="72" rx="8"/>
+      <text class="n-t" x="266" y="60">VK-бот</text>
+      <text class="n-s" x="266" y="80">vkbottle, Bots Long Poll</text>
+
+      <rect class="n-box" x="480" y="30" width="200" height="72" rx="8"/>
+      <text class="n-t" x="496" y="60">Диалоговый движок</text>
+      <text class="n-s" x="496" y="80">FSM + банк вопросов</text>
+
+      <rect class="n-box llm" x="730" y="30" width="210" height="130" rx="8"/>
+      <text class="n-t" x="746" y="56">LLM-шлюз</text>
+      <text class="n-step" x="746" y="80">1</text><text class="n-s" x="760" y="80">GigaChat Max / Ultra</text>
+      <text class="n-step" x="746" y="99">2</text><text class="n-s" x="760" y="99">GigaChat Lite</text>
+      <text class="n-step" x="746" y="118">3</text><text class="n-s" x="760" y="118">OpenRouter, обезличенно</text>
+      <text class="n-step" x="746" y="137">4</text><text class="n-s" x="760" y="137">только правила + очередь</text>
+
+      <!-- row 2 -->
+      <g>
+        <text class="ax-t" x="20" y="206" style="font-weight:600">Обозначения</text>
+        <rect x="20" y="218" width="14" height="10" rx="2" class="n-box vk"/><text class="n-s" x="42" y="227">ВКонтакте</text>
+        <rect x="20" y="238" width="14" height="10" rx="2" class="n-box llm"/><text class="n-s" x="42" y="247">языковая модель</text>
+        <rect x="20" y="258" width="14" height="10" rx="2" class="n-box"/><text class="n-s" x="42" y="267">сервер музея</text>
+        <line class="edge fb" x1="20" y1="284" x2="34" y2="284"/><text class="n-s" x="42" y="288">обратная связь</text>
+      </g>
+
+      <rect class="n-box vk" x="250" y="190" width="180" height="72" rx="8"/>
+      <text class="n-t" x="266" y="220">Чат кураторов</text>
+      <text class="n-s" x="266" y="240">беседа сообщества ВК</text>
+
+      <rect class="n-box db" x="480" y="190" width="200" height="110" rx="8"/>
+      <text class="n-t" x="496" y="216">SQLite (WAL)</text>
+      <text class="n-s" x="496" y="238">анкеты и состояния диалогов</text>
+      <text class="n-s" x="496" y="256">баллы, флаги, цитаты</text>
+      <text class="n-s" x="496" y="274">решения, часы активности</text>
+
+      <rect class="n-box" x="730" y="190" width="210" height="110" rx="8"/>
+      <text class="n-t" x="746" y="216">Воркер</text>
+      <text class="n-s" x="746" y="238">скоринг и P(успеха)</text>
+      <text class="n-s" x="746" y="256">данные из ВК, напоминания</text>
+      <text class="n-s" x="746" y="274">бэкап, переобучение</text>
+      <text class="n-s" x="746" y="292">APScheduler</text>
+
+      <!-- row 3 -->
+      <rect class="n-box" x="20" y="370" width="180" height="72" rx="8"/>
+      <text class="n-t" x="36" y="400">Excel / CSV</text>
+      <text class="n-s" x="36" y="420">загрузка в Google Sheets</text>
+
+      <rect class="n-box" x="250" y="370" width="180" height="72" rx="8"/>
+      <text class="n-t" x="266" y="400">Куратор</text>
+      <text class="n-s" x="266" y="420">шорт-лист 15–20 человек</text>
+
+      <rect class="n-box" x="480" y="370" width="200" height="72" rx="8"/>
+      <text class="n-t" x="496" y="400">Дашборд</text>
+      <text class="n-s" x="496" y="420">Streamlit + Plotly, nginx</text>
+
+      <rect class="n-box vk" x="730" y="370" width="210" height="72" rx="8"/>
+      <text class="n-t" x="746" y="400">VK API</text>
+      <text class="n-s" x="746" y="420">users · friends · groups</text>
+    </svg>
+  </div>
+
+  <div class="stack">
+    <div class="stack-item"><span class="k">Бот</span><span class="v">Python 3.12, vkbottle, Bots Long Poll</span><span class="why">Не нужен публичный HTTPS-домен, работает на сервере за NAT. Есть обычные и callback-кнопки.</span></div>
+    <div class="stack-item"><span class="k">Состояние диалога</span><span class="v">Конечный автомат, состояние в БД</span><span class="why">Кандидат может бросить анкету и продолжить через день с того же шага.</span></div>
+    <div class="stack-item"><span class="k">База данных</span><span class="v">SQLite в режиме WAL, ночной бэкап</span><span class="why">100–300 анкет в год, администрировать нечего. Если у музея уже есть PostgreSQL — берём его.</span></div>
+    <div class="stack-item"><span class="k">LLM-шлюз</span><span class="v">SDK gigachat + OpenAI-совместимый клиент, Pydantic</span><span class="why">Ответ модели принимается только по JSON-схеме. Модель меняется в конфиге без правки кода.</span></div>
+    <div class="stack-item"><span class="k">Аналитика и ML</span><span class="v">pandas, scikit-learn, factor_analyzer</span><span class="why">Логистическая регрессия с экспертным априором и разведочный факторный анализ.</span></div>
+    <div class="stack-item"><span class="k">Дашборд и выгрузка</span><span class="v">Streamlit + Plotly, xlsxwriter</span><span class="why">Пишется за пару дней и легко работает на слабом сервере.</span></div>
+    <div class="stack-item"><span class="k">Деплой</span><span class="v">Docker Compose: bot, worker, dashboard, nginx</span><span class="why">Хватит 1 vCPU и 1–2 ГБ RAM. GPU не нужен: модель работает удалённо.</span></div>
+    <div class="stack-item"><span class="k">Настройки</span><span class="v">config.yaml + ползунки в дашборде</span><span class="why">Веса, пороги, тексты и банк вопросов меняются без программиста.</span></div>
+  </div>
+</section>
+
+<!-- 3. DIALOG -->
+<section id="dialog">
+  <div class="sec-head">
+    <div class="eyebrow">Что видит кандидат</div>
+    <h2>Сценарий диалога</h2>
+    <p class="muted">Над каждым вопросом показан прогресс. На каждом шаге есть «Назад» и «Продолжить позже». Закрытые вопросы задаются кнопками, множественный выбор — кнопками-переключателями с «Готово». Если анкета брошена, через 24 часа приходит одно напоминание.</p>
+  </div>
+  <div class="dialog">
+    <ol class="steps">
+      <li><div class="s-body"><div class="s-head"><b>Знакомство с программой</b><span class="tag btn">карточки</span></div><span class="s-txt">3–4 карточки о направлениях, нагрузке и подводных камнях: «в фондах мест мало, работа по будням днём». Кандидат сразу видит, подходит ли ему программа.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Согласие на обработку ПДн</b><span class="tag gate">фильтр</span></div><span class="s-txt">Отдельной строкой — согласие на анализ открытых данных страницы ВК.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>ФИО, email, дата рождения</b><span class="tag txt">текст</span><span class="tag gate">18+</span></div><span class="s-txt">Email проверяется по формату. Ссылку на ВК не спрашиваем: бот знает user_id.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Где вы живёте</b><span class="tag btn">кнопки</span><span class="tag new">новый вопрос</span></div><span class="s-txt">Москва, Московская область или другой город. Для области — время дороги до центра: до 1 ч, 1–2 ч, больше 2 ч.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Статус и учёба</b><span class="tag btn">кнопки</span><span class="tag txt">текст</span></div><span class="s-txt">Студент, работаю или не работаю → вуз → факультет → курс → <b>форма обучения</b> (новый вопрос для флага «1 курс, очно»). Если работает — полная ли занятость.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Интересы и опыт</b><span class="tag txt">текст</span></div><span class="s-txt">Научные интересы, опыт работы и стажировок, языки от B1, хобби.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Мотивация</b><span class="tag txt">текст</span><span class="tag llm">проверка LLM</span></div><span class="s-txt">«Почему именно ГИМ?» и «Чего вы ожидаете?». Если ответ короче 8 слов или шаблонный, Lite-модель задаёт одно мягкое уточнение.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Время и занятость</b><span class="tag btn">кнопки</span></div><span class="s-txt">Часов в месяц: меньше 5, 5–10, 10–20, 20–40, больше 40. Удобные дни. Участие в других волонтёрских программах.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Направления и источник</b><span class="tag btn">мультивыбор</span></div><span class="s-txt">Если узнал «от друзей», бот уточняет: друг сейчас волонтёр ГИМ? Да, был раньше или нет.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Уточняющие вопросы</b><span class="tag llm">LLM + правила</span></div><span class="s-txt">От 3 до 5 вопросов о пробелах в анкете. Как они подбираются, описано ниже.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Короткий опрос TIPI-RU</b><span class="tag btn">шкала 1–7</span></div><span class="s-txt">10 пунктов, около минуты. Результаты кандидату не показываем.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Сводка ответов</b><span class="tag btn">кнопки</span></div><span class="s-txt">«Всё верно?» с возможностью исправить любой ответ.</span></div></li>
+      <li><div class="s-body"><div class="s-head"><b>Финал</b><span class="tag llm">LLM</span></div><span class="s-txt">Сроки и следующие шаги, персональная подсказка, в каких направлениях кандидат, вероятно, реализуется.</span></div></li>
+    </ol>
+
+    <div class="phone" aria-label="Пример диалога в ВК">
+      <div class="phone-top"><div class="avatar">Г</div><div><b>Волонтёры Исторического музея</b><span>пример диалога, кандидат вымышленный</span></div></div>
+      <div class="chat">
+        <div class="msg bot"><span class="step">Шаг 6 из 9 · Интересы и опыт</span>Расскажите о ваших хобби.</div>
+        <div class="msg me">Фотография, иногда монтирую ролики для друзей</div>
+        <div class="msg bot llm-msg"><span class="step">Уточнение · навыки X4</span>Вы упомянули фотографию. Как оцениваете свой уровень?</div>
+        <div class="kb"><span>Только начинаю</span><span class="on">Уверенный любитель</span><span>Снимаю за деньги</span></div>
+        <div class="msg bot llm-msg"><span class="step">Уточнение · соответствие направлению</span>Готовы снимать мероприятия музея для медиа-направления? Если есть портфолио, пришлите ссылку.</div>
+        <div class="kb"><span class="on">Да</span><span>Возможно</span><span>Нет</span></div>
+        <div class="msg me">Да, вот подборка: vk.com/album…</div>
+      </div>
+      <div class="phone-note">Ответ попадает в пункты X4 и F с цитатой-обоснованием.</div>
+    </div>
+  </div>
+
+  <div class="sec-head">
+    <h3>Как подбираются уточняющие вопросы</h3>
+    <p class="muted">Работают два механизма. Правила-триггеры детерминированы и бесплатны. LLM-планировщик получает все ответы, банк вопросов от музея и список пробелов в скоринге и возвращает до 5 вопросов, каждый с привязкой к пункту, который он проверяет.</p>
+  </div>
+  <div class="triggers">
+    <div class="trig"><span class="if">Хобби — фото, видео, дизайн</span><span class="then">Уровень владения, портфолио, готовность делать это для музея</span></div>
+    <div class="trig"><span class="if">Упомянут редактор (Figma, Photoshop, Premiere)</span><span class="then">Уровень владения и готовность работать в нём для фонда</span></div>
+    <div class="trig"><span class="if">Выбрано только фондовое направление</span><span class="then">Какие фонды интересны, готов ли к другим направлениям</span></div>
+    <div class="trig"><span class="if">Выбрано медиа</span><span class="then">Что именно: посты, фото, видео, дизайн, контент-план</span></div>
+    <div class="trig"><span class="if">Выбрано организационное направление</span><span class="then">С какими посетителями комфортно: дети, молодёжь, взрослые, пенсионеры</span></div>
+    <div class="trig"><span class="if">Нигде нет работы с людьми или детьми</span><span class="then">Прямой вопрос о таком опыте: это ключевой софт-скилл</span></div>
+    <div class="trig"><span class="if">Учится и работает одновременно</span><span class="then">Реальный свободный график по дням недели</span></div>
+    <div class="trig"><span class="if">Хочет в сферу, где нет подтверждённого опыта</span><span class="then">Был ли опыт в этой сфере, какие инструменты знает</span></div>
+  </div>
+</section>
+
+<!-- 4. SCORING -->
+<section id="scoring">
+  <div class="sec-head">
+    <div class="eyebrow">Как считаются баллы</div>
+    <h2>Критерии и скоринг</h2>
+    <p class="muted">Каждый пункт оценивается от 0 до 3. Структурированные поля считаются правилами, тексты оценивает LLM по шкале с якорями. К каждой оценке LLM прикладывает цитату из ответа.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Критерий и вес</th><th>Пункты</th><th>Источник</th></tr></thead>
+      <tbody>
+        <tr><td><span class="crit-name">E · Вовлечённость</span> <span class="num muted">0,35</span><span class="wbar" style="width:100%"></span></td><td>E1 конкретика «почему ГИМ» · E2 конкретика ожиданий · E3 совпадение интересов с тематикой музея · E4 связь с сетью волонтёров (друг-волонтёр, общие друзья в ВК) · E5 подписки на музейные и исторические сообщества · E6 готовность не только к фондам · E7 инициатива и идеи</td><td>LLM, правила, VK API</td></tr>
+        <tr><td><span class="crit-name">A · Доступность</span> <span class="num muted">0,25</span><span class="wbar" style="width:71%"></span></td><td>A1 часы в месяц · A2 география · A3 нагрузка (1 курс очно, работа плюс учёба) · A4 число других волонтёрских программ</td><td>правила</td></tr>
+        <tr><td><span class="crit-name">X · Опыт и навыки</span> <span class="num muted">0,20</span><span class="wbar" style="width:57%"></span></td><td>X1 профильный опыт (музеи, архивы, экспедиции, выставки) · X2 волонтёрский опыт · X3 работа с людьми и детьми · X4 полезные навыки с уровнем владения · X5 академическая активность</td><td>LLM и уточнения</td></tr>
+        <tr><td><span class="crit-name">Q · Качество анкеты</span> <span class="num muted">0,10</span><span class="wbar" style="width:29%"></span></td><td>Q1 заполнены все поля (не объём текста) · Q2 грамотность и адекватность · Q3 открытость и наполненность страницы ВК</td><td>правила, LLM, VK API</td></tr>
+        <tr><td><span class="crit-name">F · Соответствие направлению</span> <span class="num muted">0,10</span><span class="wbar" style="width:29%"></span></td><td>Подтверждённые навыки совпадают с выбранным направлением. Заодно даёт рекомендацию направления</td><td>LLM</td></tr>
+        <tr><td><span class="crit-name">P · Личность</span> <span class="num muted">0 до проверки</span></td><td>TIPI: добросовестность, доброжелательность, экстраверсия. Собираем с первого набора, вес включаем, только если данные покажут пользу</td><td>опрос</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="two">
+    <div class="formula">
+      <span class="c"># балл критерия, 0–100</span>
+      <span>C_k = mean(пункты_k) × 100 / 3</span>
+      <span class="c"># индекс кандидата, веса — от представителя</span>
+      <span>I = Σ w_k · C_k / Σ w_k</span>
+      <span class="c"># оценка 0–3: пороги калибруются на 112 анкетах</span>
+      <span>0: I &lt; 40 · 1: &lt; 55 · 2: &lt; 70 · 3: ≥ 70</span>
+    </div>
+    <div class="panel">
+      <h3>Шкала с якорями: пример для E1 «Почему ГИМ»</h3>
+      <ul>
+        <li><b>0</b> — ответа нет или «интересно»</li>
+        <li><b>1</b> — общая фраза о любви к истории</li>
+        <li><b>2</b> — названо конкретное: экспозиция, проект, направление</li>
+        <li><b>3</b> — конкретика плюс связь с собственными целями или опытом</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <h3>Флаги показываются отдельно от индекса</h3>
+      <div class="flags">
+        <span class="flag red">младше 18</span><span class="flag red">нет согласия на ПДн</span><span class="flag red">неадекватная анкета</span>
+      </div>
+      <div class="flags">
+        <span class="flag yel">1 курс, очно</span><span class="flag yel">другой город</span><span class="flag yel">дорога больше 1 ч</span><span class="flag yel">только фонды</span><span class="flag yel">больше 2 других программ</span><span class="flag yel">закрытый ВК</span><span class="flag yel">меньше 5 ч в месяц</span>
+      </div>
+      <div class="flags"><span class="flag inf">мало данных по критерию</span><span class="flag inf">оценка неуверенная</span></div>
+    </div>
+    <div class="panel">
+      <h3>Защита и стабильность оценки</h3>
+      <ul>
+        <li>Тексты кандидата идут в модель как данные внутри разметки, ответ принимается только по JSON-схеме.</li>
+        <li>Цитата-обоснование проверяется на точное вхождение в ответ. Нет вхождения — пункт понижается.</li>
+        <li>Фразы вида «поставь мне 3» получают флаг.</li>
+        <li>Финальный скоринг прогоняется 3 раза при temperature 0, берётся медиана. Если прогоны расходятся — флаг «оценка неуверенная».</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 5. MODEL -->
+<section id="model">
+  <div class="sec-head">
+    <div class="eyebrow">Прогноз</div>
+    <h2>Вероятность успешности</h2>
+    <p class="muted">Индекс отвечает на вопрос «насколько кандидат соответствует критериям». Вероятность отвечает на другой вопрос: «насколько похожие на него люди в прошлом действительно становились активными волонтёрами».</p>
+  </div>
+  <div class="formula">
+    <span class="c"># логистическая регрессия с экспертным априором</span>
+    <span>logit P = β₀ + β₁ · I_эксперт + Σ γ_j · z_j</span>
+    <span class="c"># γ сильно сжаты L2-регуляризацией: при малых данных модель ≈ веса эксперта,</span>
+    <span class="c"># с ростом данных сама учится поправкам, и каждая поправка видна отдельно</span>
+    <span class="c"># z_j: пять критериев, музейный опыт, 1 курс очно, общие друзья с волонтёрами, TIPI, оценка LLM</span>
+  </div>
+  <div class="two">
+    <div class="panel">
+      <h3>Целевая переменная</h3>
+      <ul>
+        <li>Предложение: <b>≥ 20 часов в первый год</b>. В истории таких 58 % взятых, классы сбалансированы.</li>
+        <li>Альтернатива: «≥ 10 часов и в программе не меньше года».</li>
+        <li>Определение согласуем с представителем.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Проверка качества</h3>
+      <ul>
+        <li>Повторная кросс-валидация, метрики AUC, Brier и калибровочная кривая.</li>
+        <li>Базовая линия, которую нужно обогнать: балл куратора, AUC 0,55.</li>
+        <li>Исход известен только для взятых, поэтому логируем все решения. После 2–3 наборов (около 100 меток) модель и факторная структура пересобираются.</li>
+        <li>Оценку LLM используем как один признак, а не как итоговую вероятность: она плохо откалибрована.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="panel">
+    <h3>Факторный анализ</h3>
+    <p class="muted" style="font-size:15px">LLM проставляет пункты E1–Q3 по 112 историческим анкетам. Дальше полихорические корреляции, проверка KMO, параллельный анализ и разведочный факторный анализ с вращением oblimin. Проверяем, воспроизводятся ли пять экспертных критериев. 112 анкет на 15–18 пунктов — граница применимости, поэтому нагрузки дают только стартовые веса пунктов внутри критериев. Если фактор держится на 1–2 пунктах, добавляем 2–3 вопроса со шкалой Лайкерта, но не больше 5 на всю анкету.</p>
+  </div>
+</section>
+
+<!-- 6. LLM -->
+<section id="llm">
+  <div class="sec-head">
+    <div class="eyebrow">Модель</div>
+    <h2>Выбор LLM</h2>
+    <p class="muted">Основная модель — GigaChat. Финальный выбор делаем сравнением на 112 исторических анкетах: согласие с кураторами по приглашению, стабильность между прогонами и AUC по активности.</p>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Роль</th><th>Модель</th><th>Зачем и ограничения</th></tr></thead>
+      <tbody>
+        <tr><td>Скоринг, саммари, вопросы к собеседованию</td><td><b>GigaChat Max или 3-Ultra</b></td><td>Сильный русский язык, данные остаются в РФ. Бесплатно физлицам 25 млн токенов Max и 50 млн Ultra в год.</td></tr>
+        <tr><td>Быстрые проверки ответов в диалоге</td><td><b>GigaChat Lite</b></td><td>Быстрая и дешёвая; 250 млн токенов в год бесплатно.</td></tr>
+        <tr><td>Запасной вариант</td><td>Бесплатные open-weight модели на OpenRouter (Qwen, gpt-oss, Gemma)</td><td>50 запросов в день без пополнения, 1 000 после $10. Передача за границу — только обезличенного текста без ФИО и контактов.</td></tr>
+        <tr><td>Аварийный режим</td><td>Только правила</td><td>Бот продолжает собирать анкеты, вопросы берутся из банка, скоринг встаёт в очередь на пересчёт.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h3>Бюджет токенов на год</h3>
+    <div class="budget" role="figure" aria-label="Потребность в токенах против бесплатного лимита">
+      <div class="b-row"><span class="b-lbl">Наша потребность: 100–200 кандидатов × 20–30 тыс. токенов</span><div class="b-track"><div class="b-fill" style="width:24%;background:var(--brick)"></div></div><b class="num">до 6 млн</b></div>
+      <div class="b-row"><span class="b-lbl">Бесплатный лимит GigaChat Max</span><div class="b-track"><div class="b-fill" style="width:100%;background:var(--line-strong)"></div></div><b class="num">25 млн</b></div>
+    </div>
+    <p class="muted" style="font-size:14px">Риск: бесплатный тариф предназначен для личного некоммерческого использования. Для музея, скорее всего, нужен платный пакет; с 1 сентября 2026 новых клиентов тарифицируют через cloud.ru, цену нужно уточнить там.</p>
+  </div>
+</section>
+
+<!-- 7. DASHBOARD -->
+<section id="dash">
+  <div class="sec-head">
+    <div class="eyebrow">Что видит куратор</div>
+    <h2>Макет дашборда</h2>
+    <p class="muted">Интерактивный макет на вымышленных данных: 96 кандидатов одного набора. Во вкладке «Рейтинг» ползунки весов пересчитывают порядок на лету, а клик по строке открывает карточку кандидата.</p>
+  </div>
+
+  <div class="dash">
+    <div class="dash-bar"><span class="ttl">Набор «Осень 2026»</span><span class="demo-chip">демо-данные</span></div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-ov" aria-selected="true" aria-controls="pane-ov">Обзор набора</button>
+      <button role="tab" id="tab-rk" aria-selected="false" aria-controls="pane-rk">Рейтинг</button>
+      <button role="tab" id="tab-cd" aria-selected="false" aria-controls="pane-cd">Карточка кандидата</button>
+      <button role="tab" id="tab-md" aria-selected="false" aria-controls="pane-md">Качество модели</button>
+    </div>
+
+    <div class="pane" id="pane-ov" role="tabpanel" aria-labelledby="tab-ov">
+      <div class="kpis" id="kpis"></div>
+      <div class="charts">
+        <div class="chart"><h4>Воронка набора</h4><svg id="ch-funnel" viewBox="0 0 440 170"></svg></div>
+        <div class="chart"><h4>Распределение индекса</h4><svg id="ch-hist" viewBox="0 0 440 190"></svg></div>
+        <div class="chart"><h4>Вовлечённость × опыт · размер точки = P(успеха)</h4><svg id="ch-scatter" viewBox="0 0 440 260"></svg>
+          <div class="legend"><span><i style="background:var(--good)"></i>оценка 3</span><span><i style="background:var(--vk)"></i>2</span><span><i style="background:var(--warn)"></i>1</span><span><i style="background:var(--line-strong)"></i>0</span></div></div>
+        <div class="chart"><h4>Спрос на направления и свободные места</h4><svg id="ch-dirs" viewBox="0 0 440 230"></svg>
+          <div class="legend"><span><i style="background:var(--vk);border-radius:2px"></i>выбрали направление</span><span><i style="background:var(--brick);border-radius:2px"></i>свободных мест</span></div></div>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-rk" role="tabpanel" aria-labelledby="tab-rk" hidden>
+      <div class="weights" id="weights"></div>
+      <div class="tbl-wrap">
+        <table class="rank">
+          <thead><tr><th>#</th><th>Кандидат</th><th>Индекс</th><th>0–3</th><th>P(успеха)</th><th>E · A · X · Q · F</th><th>Флаги</th><th>Направление</th></tr></thead>
+          <tbody id="rank-body"></tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:13px" id="rank-note"></p>
+    </div>
+
+    <div class="pane" id="pane-cd" role="tabpanel" aria-labelledby="tab-cd" hidden>
+      <div class="card-sel"><label for="cand-select">Кандидат:</label><select id="cand-select"></select></div>
+      <div id="card"></div>
+    </div>
+
+    <div class="pane" id="pane-md" role="tabpanel" aria-labelledby="tab-md" hidden>
+      <div class="charts">
+        <div class="chart"><h4>Сейчас: AUC по активности ≥ 20 ч (исторические данные, n = 43)</h4><svg id="ch-model" viewBox="0 0 440 150"></svg></div>
+        <div class="empty"><b style="color:var(--ink)">Калибровка и вклад признаков появятся после первого набора</b><span>Когда через год станут известны часы активности новых волонтёров, здесь будут калибровочная кривая, сравнение решений куратора и модели и вклад каждого признака в прогноз.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8. EXPORT -->
+<section id="export">
+  <div class="sec-head">
+    <div class="eyebrow">Выгрузка</div>
+    <h2>Excel-файл набора</h2>
+    <p class="muted">Колонки совпадают с нынешними таблицами музея плюс новые, поэтому файл загружается в Google Sheets без переделки. Тот же набор доступен в CSV. В чат кураторов в ВК по каждой новой анкете приходит карточка: имя, оценка, флаги и ссылка на карточку в дашборде.</p>
+  </div>
+  <div class="excel">
+    <div class="sheet"><div class="sheet-name">Рейтинг</div><div class="sheet-cols">Строка на кандидата: место, ФИО, ссылка ВК, индекс, оценка 0–3, P(успеха), баллы E, A, X, Q, F, флаги, рекомендованное направление, решение куратора</div></div>
+    <div class="sheet"><div class="sheet-name">Ответы</div><div class="sheet-cols">Все ответы анкеты и уточняющих вопросов в исходном виде, по одной строке на кандидата</div></div>
+    <div class="sheet"><div class="sheet-name">Вопросы к собеседованию</div><div class="sheet-cols">3–5 вопросов на кандидата, привязанных к пробелам и флагам анкеты</div></div>
+    <div class="sheet"><div class="sheet-name">Сводка набора</div><div class="sheet-cols">Воронка, распределение оценок, спрос по направлениям, география, источники, средний профиль</div></div>
+  </div>
+  <div class="two">
+    <div class="panel">
+      <h3>Что берём из ВК</h3>
+      <ul>
+        <li><span class="mono">users.get</span>: город, возраст, вузы, открыт ли профиль.</li>
+        <li><span class="mono">friends.get</span>: общие друзья с участниками волонтёрского сообщества.</li>
+        <li><span class="mono">groups.get</span>: подписки на музейные и исторические сообщества. Для чужих профилей нужен пользовательский токен.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Персональные данные</h3>
+      <ul>
+        <li>Храним только производные признаки: «7 общих друзей с волонтёрами», «4 музейных сообщества». Списки друзей не сохраняем.</li>
+        <li>Закрытый профиль — флаг, а не нулевой балл.</li>
+        <li>Данные лежат на сервере музея, в GigaChat уходят тексты анкеты в рамках согласия.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 9. PLAN -->
+<section id="plan">
+  <div class="sec-head">
+    <div class="eyebrow">Порядок работ</div>
+    <h2>План на хакатон</h2>
+  </div>
+  <ol class="plan">
+    <li><div><b>Почистить исторические таблицы</b><span>Свести три листа, исправить даты и опечатки, согласовать с представителем, кого считаем успешным волонтёром.</span></div></li>
+    <li><div><b>Рубрики и LLM-экстрактор</b><span>Шкалы с якорями для каждого пункта, прогон на 112 анкетах, сравнение GigaChat и запасных моделей.</span></div></li>
+    <li><div><b>Факторный анализ и базовая модель</b><span>Стартовые веса пунктов, логистическая регрессия с экспертным априором, кросс-валидация против балла куратора.</span></div></li>
+    <li><div><b>Бот</b><span>FSM, банк вопросов, правила-триггеры, адаптивный блок, напоминания.</span></div></li>
+    <li><div><b>Дашборд и выгрузка</b><span>Четыре вкладки, ползунки весов, Excel из четырёх листов, уведомления в чат кураторов.</span></div></li>
+    <li><div><b>Упаковка</b><span>Docker Compose и инструкция для музея: запуск, смена весов, бэкап.</span></div></li>
+  </ol>
+  <div class="sources">
+    <b>Источники по тарифам и ограничениям</b>
+    <a href="https://developers.sber.ru/docs/ru/gigachat/changelog">История обновлений GigaChat API</a>
+    <a href="https://altrouter.ai/blog/gigachat-api-tarify/">GigaChat API: тарифы 2026</a>
+    <a href="https://sber.pro/publication/sber-otkryl-dostup-k-gigachat-api-dlya-nekommercheskogo-ispolzovaniya/">Сбер открыл GigaChat API для некоммерческого использования</a>
+    <a href="https://pricepertoken.com/endpoints/openrouter/free">OpenRouter: бесплатные модели и лимиты</a>
+    <a href="https://openrouter.ai/pricing">OpenRouter: тарифы</a>
+    <a href="https://bothelp.io/ru/blog/kak-sozdat-bota-v-vk">Как создать бота в ВК</a>
+  </div>
+  <footer>Цифры раздела «Что показали анкеты» посчитаны по таблицам музея. Данные в макете дашборда вымышленные.</footer>
+</section>
+
+</div>
+
+<script>
+(function () {
+  // --- демо-данные: детерминированный генератор, чтобы макет выглядел одинаково у всех
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  var rnd = mulberry32(2026);
+  function pick(arr) { return arr[Math.floor(rnd() * arr.length)]; }
+  function norm(m, s) { var u = 1 - rnd(), v = rnd(); return m + s * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function clamp(x) { return Math.max(5, Math.min(98, Math.round(x))); }
+  function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+
+  var NAMES = ["Анна", "Михаил", "Дарья", "Илья", "Полина", "Арсений", "Вера", "Глеб", "Софья", "Тимур", "Алиса", "Егор", "Мария", "Лев", "Ксения", "Артём", "Елизавета", "Никита", "Варвара", "Фёдор", "Ульяна", "Кирилл", "Таисия", "Матвей"];
+  var LETTERS = "АБВГДЕЖЗИКЛМНОПРСТУФХЧШЯ";
+  var UNIS = ["НИУ ВШЭ", "РГГУ", "МГУ", "ГАУГН", "МПГУ", "ГУП"];
+  var COURSES = [["1 курс, очно", 0.24], ["2 курс", 0.11], ["3 курс", 0.16], ["4 курс", 0.14], ["магистратура", 0.1], ["выпускник", 0.13], ["работает", 0.12]];
+  var DIRS = ["Организационное", "Проектное", "Фондовое", "Инклюзивное", "Медиа"];
+  var PLACES = { "Организационное": 6, "Проектное": 4, "Фондовое": 2, "Инклюзивное": 3, "Медиа": 3 };
+  var CRIT = [["E", "Вовлечённость"], ["A", "Доступность"], ["X", "Опыт"], ["Q", "Качество анкеты"], ["F", "Направление"]];
+  var DEFAULT_W = { E: 35, A: 25, X: 20, Q: 10, F: 10 };
+
+  function weighted(list) { var r = rnd(), acc = 0; for (var i = 0; i < list.length; i++) { acc += list[i][1]; if (r <= acc) return list[i][0]; } return list[list.length - 1][0]; }
+
+  var people = [];
+  for (var i = 0; i < 96; i++) {
+    var course = weighted(COURSES);
+    var cityR = rnd();
+    var city = cityR < 0.7 ? "Москва" : cityR < 0.9 ? "Московская обл." : "другой город";
+    var far = city === "Московская обл." && rnd() < 0.5;
+    var museum = rnd() < 0.26;
+    var friend = rnd() < 0.26;
+    var onlyFond = rnd() < 0.08;
+    var closedVk = rnd() < 0.15;
+    var hoursR = rnd();
+    var hours = hoursR < 0.08 ? "меньше 5" : hoursR < 0.35 ? "5–10" : hoursR < 0.75 ? "10–20" : hoursR < 0.93 ? "20–40" : "больше 40";
+    var dirs = onlyFond ? ["Фондовое"] : DIRS.filter(function () { return rnd() < 0.45; });
+    if (!dirs.length) dirs = [pick(DIRS)];
+    var firstYear = course === "1 курс, очно";
+    var hoursScore = { "меньше 5": 10, "5–10": 40, "10–20": 65, "20–40": 85, "больше 40": 92 }[hours];
+    var E = clamp(norm(55, 14) + (friend ? 10 : 0) - (onlyFond ? 12 : 0));
+    var A = clamp(0.5 * hoursScore + (city === "Москва" ? 40 : far ? 8 : city === "другой город" ? 0 : 25) - (firstYear ? 15 : 0) + norm(0, 6));
+    var X = clamp(norm(firstYear ? 35 : 50, 14) + (museum ? 22 : 0));
+    var Q = clamp(norm(62, 14) - (closedVk ? 10 : 0));
+    var F = clamp(norm(58, 15));
+    var flags = [];
+    if (firstYear) flags.push(["1 курс, очно", "yel"]);
+    if (city === "другой город") flags.push(["другой город", "yel"]);
+    if (far) flags.push(["дорога > 1 ч", "yel"]);
+    if (onlyFond) flags.push(["только фонды", "yel"]);
+    if (hours === "меньше 5") flags.push(["< 5 ч в месяц", "yel"]);
+    if (closedVk) flags.push(["закрытый ВК", "yel"]);
+    if (rnd() < 0.07) flags.push(["оценка неуверенная", "inf"]);
+    var p = {
+      id: i, name: pick(NAMES) + " " + LETTERS[Math.floor(rnd() * LETTERS.length)] + ".",
+      uni: course === "работает" ? "" : pick(UNIS), course: course, city: city, far: far, museum: museum, friend: friend,
+      onlyFond: onlyFond, closedVk: closedVk, hours: hours, dirs: dirs, firstYear: firstYear, flags: flags,
+      c: { E: E, A: A, X: X, Q: Q, F: F }
+    };
+    p.base = indexOf(p, DEFAULT_W);
+    p.P = sigmoid(-3.1 + 0.05 * p.base + (museum ? 0.5 : 0) - (firstYear ? 0.9 : 0) + norm(0, 0.35));
+    people.push(p);
+  }
+
+  var W = Object.assign({}, DEFAULT_W);
+  function indexOf(p, w) { var s = 0, t = 0; for (var k in w) { s += w[k] * p.c[k]; t += w[k]; } return t ? s / t : 0; }
+  function score03(I) { return I < 40 ? 0 : I < 55 ? 1 : I < 70 ? 2 : 3; }
+  function fmt(x, d) { return x.toFixed(d || 0).replace(".", ","); }
+  function pct(x) { return Math.round(x * 100) + "%"; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); }
+  function recompute() { people.forEach(function (p) { p.I = indexOf(p, W); p.s = score03(p.I); }); }
+  function ranked() { return people.slice().sort(function (a, b) { return b.I - a.I; }); }
+  var SCORE_COLOR = ["var(--line-strong)", "var(--warn)", "var(--vk)", "var(--good)"];
+  var SVGNS = "http://www.w3.org/2000/svg";
+
+  // --- обзор
+  function renderKpis() {
+    var rec = people.filter(function (p) { return p.s === 3; }).length;
+    var places = 0; for (var k in PLACES) places += PLACES[k];
+    var items = [["118", "начали анкету"], ["96", "завершили"], ["91", "прошли фильтры"], [String(rec), "с оценкой 3"], [String(places), "свободных мест"]];
+    document.getElementById("kpis").innerHTML = items.map(function (it) { return '<div class="kpi"><b>' + it[0] + "</b><span>" + it[1] + "</span></div>"; }).join("");
+  }
+  function renderFunnel() {
+    var rec = people.filter(function (p) { return p.s >= 2; }).length;
+    var rows = [["Начали", 118], ["Завершили", 96], ["Прошли фильтры", 91], ["Оценка 2–3", rec], ["Свободных мест", 18]];
+    var svg = "", x0 = 120, maxW = 270;
+    rows.forEach(function (r, i) {
+      var y = 10 + i * 31, w = Math.max(2, maxW * r[1] / 118);
+      svg += '<text class="ax-t" x="0" y="' + (y + 15) + '" style="font-size:12px">' + r[0] + "</text>";
+      svg += '<rect x="' + x0 + '" y="' + y + '" width="' + w + '" height="22" rx="3" fill="' + (i === 4 ? "var(--brick)" : "var(--vk)") + '" opacity="' + (1 - i * 0.12) + '"/>';
+      svg += '<text class="ax-t" x="' + (x0 + w + 6) + '" y="' + (y + 15) + '" style="font-size:12px;fill:var(--ink)">' + r[1] + "</text>";
+    });
+    document.getElementById("ch-funnel").innerHTML = svg;
+  }
+  function renderHist() {
+    var bins = new Array(10).fill(0);
+    people.forEach(function (p) { bins[Math.min(9, Math.floor(p.I / 10))]++; });
+    var maxC = Math.max.apply(null, bins), yMax = Math.ceil(maxC / 5) * 5 || 5;
+    var L = 30, R = 430, T = 10, B = 160, bw = (R - L) / 10, svg = "";
+    for (var t = 0; t <= yMax; t += 5) { var yy = B - (B - T) * t / yMax; svg += '<line class="ax" x1="' + L + '" x2="' + R + '" y1="' + yy + '" y2="' + yy + '"/><text class="ax-t" x="' + (L - 6) + '" y="' + (yy + 3) + '" text-anchor="end">' + t + "</text>"; }
+    bins.forEach(function (c, i) {
+      var h = (B - T) * c / yMax, col = SCORE_COLOR[score03(i * 10 + 5)];
+      svg += '<rect x="' + (L + i * bw + 2) + '" y="' + (B - h) + '" width="' + (bw - 4) + '" height="' + h + '" rx="2" fill="' + col + '"/>';
+    });
+    for (var v = 0; v <= 100; v += 20) svg += '<text class="ax-t" x="' + (L + (R - L) * v / 100) + '" y="' + (B + 16) + '" text-anchor="middle">' + v + "</text>";
+    svg += '<text class="ax-t" x="' + R + '" y="' + (B + 28) + '" text-anchor="end">индекс I, 0–100</text>';
+    document.getElementById("ch-hist").innerHTML = svg;
+  }
+  function renderScatter() {
+    var L = 34, R = 430, T = 10, B = 225, svg = "";
+    for (var v = 0; v <= 100; v += 25) {
+      var x = L + (R - L) * v / 100, y = B - (B - T) * v / 100;
+      svg += '<line class="ax" x1="' + x + '" x2="' + x + '" y1="' + T + '" y2="' + B + '"/><line class="ax" x1="' + L + '" x2="' + R + '" y1="' + y + '" y2="' + y + '"/>';
+      svg += '<text class="ax-t" x="' + x + '" y="' + (B + 14) + '" text-anchor="middle">' + v + '</text><text class="ax-t" x="' + (L - 6) + '" y="' + (y + 3) + '" text-anchor="end">' + v + "</text>";
+    }
+    svg += '<text class="ax-t" x="' + R + '" y="' + (B + 28) + '" text-anchor="end">X · опыт</text><text class="ax-t" x="' + (L + 4) + '" y="' + (T + 10) + '">E · вовлечённость</text>';
+    people.forEach(function (p) {
+      var x = L + (R - L) * p.c.X / 100, y = B - (B - T) * p.c.E / 100, r = 2.5 + p.P * 6;
+      svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + SCORE_COLOR[p.s] + '" fill-opacity="0.75"><title>' + esc(p.name) + ": I " + fmt(p.I) + ", P " + pct(p.P) + "</title></circle>";
+    });
+    document.getElementById("ch-scatter").innerHTML = svg;
+  }
+  function renderDirs() {
+    var demand = {}; DIRS.forEach(function (d) { demand[d] = 0; });
+    people.forEach(function (p) { p.dirs.forEach(function (d) { demand[d]++; }); });
+    var maxD = Math.max.apply(null, DIRS.map(function (d) { return demand[d]; }));
+    var top = Math.ceil(maxD / 10) * 10, L = 128, R = 420, svg = "";
+    for (var t = 0; t <= top; t += 10) { var x = L + (R - L) * t / top; svg += '<line class="ax" x1="' + x + '" x2="' + x + '" y1="4" y2="205"/><text class="ax-t" x="' + x + '" y="220" text-anchor="middle">' + t + "</text>"; }
+    DIRS.forEach(function (d, i) {
+      var y = 10 + i * 40, wd = (R - L) * demand[d] / top, wp = (R - L) * PLACES[d] / top;
+      svg += '<text class="ax-t" x="0" y="' + (y + 17) + '" style="font-size:12px">' + d + "</text>";
+      svg += '<rect x="' + L + '" y="' + y + '" width="' + wd + '" height="14" rx="2" fill="var(--vk)"/>';
+      svg += '<text class="ax-t" x="' + (L + wd + 5) + '" y="' + (y + 11) + '" style="fill:var(--ink)">' + demand[d] + "</text>";
+      svg += '<rect x="' + L + '" y="' + (y + 17) + '" width="' + Math.max(2, wp) + '" height="9" rx="2" fill="var(--brick)"/>';
+      svg += '<text class="ax-t" x="' + (L + wp + 5) + '" y="' + (y + 25) + '">' + PLACES[d] + "</text>";
+    });
+    document.getElementById("ch-dirs").innerHTML = svg;
+  }
+
+  // --- рейтинг
+  function renderWeights() {
+    var box = document.getElementById("weights");
+    box.innerHTML = CRIT.map(function (c) {
+      return '<label for="w-' + c[0] + '"><span class="wl"><span>' + c[0] + " · " + c[1] + '</span><b id="wv-' + c[0] + '"></b></span><input type="range" id="w-' + c[0] + '" min="0" max="50" step="5" value="' + W[c[0]] + '"></label>';
+    }).join("");
+    CRIT.forEach(function (c) {
+      document.getElementById("w-" + c[0]).addEventListener("input", function (e) { W[c[0]] = +e.target.value; update(); });
+    });
+  }
+  function renderWeightLabels() {
+    var tot = 0; for (var k in W) tot += W[k];
+    CRIT.forEach(function (c) { document.getElementById("wv-" + c[0]).textContent = tot ? Math.round(100 * W[c[0]] / tot) + "%" : "—"; });
+  }
+  function flagHtml(p) { return p.flags.map(function (f) { return '<span class="flag ' + f[1] + '">' + esc(f[0]) + "</span>"; }).join("") || '<span class="muted">—</span>'; }
+  function renderRank() {
+    var list = ranked().slice(0, 20);
+    document.getElementById("rank-body").innerHTML = list.map(function (p, i) {
+      return '<tr tabindex="0" data-id="' + p.id + '"><td class="num">' + (i + 1) + "</td><td><b>" + esc(p.name) + '</b></td><td class="num">' + fmt(p.I) + '<span class="ibar"><i style="width:' + p.I + '%"></i></span></td><td><span class="sc sc-' + p.s + '">' + p.s + '</span></td><td class="num">' + pct(p.P) + '</td><td class="crit-mini">' + CRIT.map(function (c) { return p.c[c[0]]; }).join(" · ") + "</td><td>" + flagHtml(p) + "</td><td>" + esc(p.dirs.join(", ")) + "</td></tr>";
+    }).join("");
+    document.getElementById("rank-note").textContent = "Показаны первые 20 из 96. Индекс зависит от весов, P(успеха) — от модели и от весов не зависит. Строки, где высокий индекс сочетается с низкой P, стоит обсудить на собеседовании.";
+  }
+  document.getElementById("rank-body").addEventListener("click", function (e) { var tr = e.target.closest("tr"); if (tr) openCard(+tr.dataset.id); });
+  document.getElementById("rank-body").addEventListener("keydown", function (e) { if (e.key === "Enter") { var tr = e.target.closest("tr"); if (tr) openCard(+tr.dataset.id); } });
+
+  // --- карточка
+  var current = null;
+  function radar(p) {
+    var cx = 150, cy = 140, R = 100, n = CRIT.length, svg = "";
+    var mean = {}; CRIT.forEach(function (c) { mean[c[0]] = people.reduce(function (s, q) { return s + q.c[c[0]]; }, 0) / people.length; });
+    function pt(k, v) { var a = -Math.PI / 2 + 2 * Math.PI * k / n; return [cx + R * v / 100 * Math.cos(a), cy + R * v / 100 * Math.sin(a)]; }
+    [25, 50, 75, 100].forEach(function (lv) { svg += '<polygon class="ax" fill="none" points="' + CRIT.map(function (c, k) { return pt(k, lv).join(","); }).join(" ") + '"/>'; });
+    CRIT.forEach(function (c, k) { var e = pt(k, 100), l = pt(k, 120); svg += '<line class="ax" x1="' + cx + '" y1="' + cy + '" x2="' + e[0] + '" y2="' + e[1] + '"/><text class="ax-t" x="' + l[0] + '" y="' + (l[1] + 4) + '" text-anchor="middle" style="font-size:11px">' + c[0] + " " + p.c[c[0]] + "</text>"; });
+    svg += '<polygon points="' + CRIT.map(function (c, k) { return pt(k, mean[c[0]]).join(","); }).join(" ") + '" fill="var(--line-strong)" fill-opacity="0.18" stroke="var(--line-strong)" stroke-dasharray="4 3"/>';
+    svg += '<polygon points="' + CRIT.map(function (c, k) { return pt(k, p.c[c[0]]).join(","); }).join(" ") + '" fill="var(--brick)" fill-opacity="0.22" stroke="var(--brick)" stroke-width="2"/>';
+    return '<svg viewBox="0 0 300 285" role="img" aria-label="Профиль по критериям">' + svg + "</svg>";
+  }
+  function summary(p) {
+    var who = p.course === "работает" ? "Работает, высшее образование получено" : (p.course === "выпускник" ? "Выпускник " + p.uni : "Студент " + p.uni + ", " + p.course);
+    var exp = p.museum ? "Есть профильный опыт: стажировка в архиве и помощь на выставке." : (p.c.X > 55 ? "Профильного опыта нет, но есть смежные навыки: организация студенческих мероприятий." : "Профильного и волонтёрского опыта нет.");
+    var mot = p.c.E > 68 ? "Мотивация конкретная: называет проекты музея и связывает их со своими учебными интересами." : p.c.E > 50 ? "Мотивация общая, с отдельными конкретными деталями." : "Мотивация описана шаблонно, без связи с ГИМ.";
+    var av = p.city === "Москва" ? "Живёт в Москве, готов уделять " + p.hours + " ч в месяц." : "Живёт: " + p.city + (p.far ? ", дорога больше часа" : "") + "; " + p.hours + " ч в месяц.";
+    var net = p.friend ? " Узнал о наборе от действующего волонтёра." : "";
+    return who + ". " + exp + " " + mot + " " + av + net;
+  }
+  function interviewQs(p) {
+    var q = [];
+    if (p.firstYear) q.push("Как вы совместите волонтёрство с первым курсом очного обучения? Сколько свободных часов в неделю реально остаётся?");
+    if (p.onlyFond) q.push("Если в фондах не будет мест, какое направление готовы рассмотреть?");
+    if (p.far || p.city !== "Москва") q.push("Как вы планируете добираться до музея на мероприятия в будни?");
+    if (p.c.X < 45) q.push("Был ли у вас опыт работы с посетителями, детьми или группами людей?");
+    if (p.c.E < 50) q.push("Что конкретно в Историческом музее вам хочется попробовать в первые три месяца?");
+    q.push("Какое направление вам ближе всего и почему: " + p.dirs.join(", ") + "?");
+    if (p.museum) q.push("Расскажите подробнее о работе в архиве: какие задачи вы выполняли сами?");
+    return q.slice(0, 5);
+  }
+  function renderCard() {
+    var p = current;
+    var best = p.dirs.slice().sort(function (a, b) { return PLACES[b] - PLACES[a]; })[0];
+    var quotes = [
+      ["E1", p.c.E > 60 ? "«Хочу участвовать в подготовке квестов к выставкам, это близко к моей курсовой по XVII веку»" : "«Люблю историю и хочу попробовать себя»"],
+      ["X1", p.museum ? "«Стажировка в архиве: описывала фонды личного происхождения»" : "«Опыта пока нет»"],
+      ["A1", "«" + p.hours + " ч в месяц, удобнее выходные»"]
+    ];
+    document.getElementById("card").innerHTML =
+      '<div class="card-grid">' +
+        '<div class="chart">' + radar(p) + '<div class="legend"><span><i style="background:var(--brick)"></i>кандидат</span><span><i style="background:var(--line-strong)"></i>среднее по набору</span></div></div>' +
+        '<div style="display:grid;gap:14px;min-width:0">' +
+          '<div class="card-head"><span class="nm">' + esc(p.name) + '</span><span class="sc sc-' + p.s + '" title="оценка 0–3">' + p.s + '</span><span class="pp">Индекс <b>' + fmt(p.I) + '</b></span><span class="pp">P(успеха) <b>' + pct(p.P) + '</b> <span class="muted">± 15 п. п.</span></span></div>' +
+          '<div class="flags">' + flagHtml(p) + "</div>" +
+          '<p style="font-size:15px;max-width:68ch">' + esc(summary(p)) + "</p>" +
+          '<p class="pp">Рекомендованное направление: <b>' + esc(best) + "</b>. Сигналы ВК: " + (p.closedVk ? "профиль закрыт" : (p.friend ? "6 общих друзей с волонтёрами, 3 музейных сообщества" : "2 музейных сообщества, общих друзей с волонтёрами нет")) + ".</p>" +
+          '<div style="display:grid;gap:8px"><b style="font-size:14px">Обоснования</b>' + quotes.map(function (q) { return '<div class="quote"><b>' + q[0] + "</b> " + esc(q[1]) + "</div>"; }).join("") + "</div>" +
+          '<div style="display:grid;gap:6px"><b style="font-size:14px">Вопросы для собеседования</b><ol style="margin:0;padding-left:20px;display:grid;gap:4px;font-size:14px">' + interviewQs(p).map(function (q) { return "<li>" + esc(q) + "</li>"; }).join("") + "</ol></div>" +
+        "</div>" +
+      "</div>";
+    document.getElementById("cand-select").value = String(p.id);
+  }
+  function renderSelect() {
+    document.getElementById("cand-select").innerHTML = ranked().map(function (p, i) { return '<option value="' + p.id + '">' + (i + 1) + ". " + esc(p.name) + " · " + fmt(p.I) + "</option>"; }).join("");
+    if (current) document.getElementById("cand-select").value = String(current.id);
+  }
+  document.getElementById("cand-select").addEventListener("change", function (e) { current = people[+e.target.value]; renderCard(); });
+
+  // --- качество модели: реальные AUC по историческим данным
+  function renderModel() {
+    var rows = [["Музейный опыт", 0.64, "var(--vk)"], ["Балл куратора 0–3", 0.55, "var(--line-strong)"], ["Длина ответов", 0.51, "var(--line-strong)"]];
+    var L = 130, R = 400, svg = "";
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (v) { var x = L + (R - L) * v; svg += '<line class="ax" x1="' + x + '" x2="' + x + '" y1="4" y2="112"/><text class="ax-t" x="' + x + '" y="126" text-anchor="middle">' + fmt(v, 2) + "</text>"; });
+    rows.forEach(function (r, i) {
+      var y = 12 + i * 34, w = (R - L) * r[1];
+      svg += '<text class="ax-t" x="0" y="' + (y + 13) + '" style="font-size:12px">' + r[0] + "</text>";
+      svg += '<rect x="' + L + '" y="' + y + '" width="' + w + '" height="18" rx="2" fill="' + r[2] + '"/>';
+      svg += '<text class="ax-t" x="' + (L + w + 5) + '" y="' + (y + 13) + '" style="fill:var(--ink)">' + fmt(r[1], 2) + "</text>";
+    });
+    var xc = L + (R - L) * 0.5;
+    svg += '<line x1="' + xc + '" x2="' + xc + '" y1="4" y2="112" stroke="var(--ink)" stroke-opacity="0.5" stroke-dasharray="4 3"/><text class="ax-t" x="' + (xc + 4) + '" y="142">0,5 = наугад</text>';
+    document.getElementById("ch-model").innerHTML = svg;
+  }
+
+  // --- вкладки
+  var tabs = ["ov", "rk", "cd", "md"];
+  function showTab(id) {
+    tabs.forEach(function (t) {
+      document.getElementById("tab-" + t).setAttribute("aria-selected", t === id ? "true" : "false");
+      document.getElementById("pane-" + t).hidden = t !== id;
+    });
+  }
+  tabs.forEach(function (t) { document.getElementById("tab-" + t).addEventListener("click", function () { showTab(t); }); });
+  function openCard(id) { current = people[id]; renderCard(); showTab("cd"); document.getElementById("tab-cd").focus(); }
+
+  function update() {
+    recompute(); renderWeightLabels(); renderKpis(); renderFunnel(); renderHist(); renderScatter(); renderRank(); renderSelect();
+    if (current) renderCard();
+  }
+  recompute();
+  current = ranked()[0];
+  renderWeights(); renderDirs(); renderModel();
+  update();
+})();
+</script>

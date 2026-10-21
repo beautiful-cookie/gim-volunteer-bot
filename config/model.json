@@ -1,0 +1,57 @@
+{
+ "created": "2026-10-21",
+ "target": "hours_per_year >= 20",
+ "n": 44,
+ "active_share": 0.477,
+ "threshold": 20,
+ "lam": 100,
+ "lam_counts": {
+  "100": 1
+ },
+ "features": [
+  "index",
+  "F_engagement",
+  "F_experience",
+  "F_direction_fit",
+  "F_quality",
+  "F_availability",
+  "first_year_bach",
+  "cat_museum_practice",
+  "friend"
+ ],
+ "coefficients": {
+  "intercept": -0.09459395977103052,
+  "index": 0.38315947042681825,
+  "F_engagement": -0.010202136578377681,
+  "F_experience": 0.010516901749371158,
+  "F_direction_fit": -0.012781169475772854,
+  "F_quality": -0.0016128317664614142,
+  "F_availability": -0.0019416757050287883,
+  "first_year_bach": -0.007674667045062468,
+  "cat_museum_practice": 0.001750358160884715,
+  "friend": -0.0019299173936883204
+ },
+ "mean": {
+  "index": 65.88181818181819,
+  "F_engagement": 57.895454545454534,
+  "F_experience": 55.95909090909092,
+  "F_direction_fit": 46.21363636363637,
+  "F_quality": 91.65227272727273,
+  "F_availability": 86.3659090909091,
+  "first_year_bach": 0.09090909090909091,
+  "cat_museum_practice": 0.2727272727272727,
+  "friend": 0.29545454545454547
+ },
+ "std": {
+  "index": 16.78391102876465,
+  "F_engagement": 16.773287130345825,
+  "F_experience": 31.346279452866334,
+  "F_direction_fit": 32.74492043126058,
+  "F_quality": 12.063082084615244,
+  "F_availability": 32.03250439490982,
+  "first_year_bach": 0.28747978728803447,
+  "cat_museum_practice": 0.44536177141512323,
+  "friend": 0.45624681590647115
+ },
+ "note": "Признаки стандартизуются (x − mean) / std, пропуски → 0 (среднее). Обучено на малой выборке: пересобирать после каждого набора."
+}
