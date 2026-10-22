@@ -1,0 +1,42 @@
+# Настройки дашборда кураторов (Streamlit читает этот файл, если запускать из корня проекта:
+#   streamlit run dashboard/app.py
+# Цвета — из презентации ГИМ, стиль карточек и графиков — в dashboard/theme.py.
+
+[server]
+# Раздаёт файлы из dashboard/static: шрифт заголовков и логотип.
+enableStaticServing = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Без кнопки Deploy и меню разработчика: дашборд для кураторов.
+toolbarMode = "viewer"
+
+[theme]
+base = "light"
+primaryColor = "#891F27"
+backgroundColor = "#FBF4EF"
+secondaryBackgroundColor = "#F4E7E1"
+textColor = "#4A1A20"
+linkColor = "#891F27"
+borderColor = "#EADBD3"
+dataframeBorderColor = "#EADBD3"
+dataframeHeaderBackgroundColor = "#F6E4E2"
+baseRadius = "1rem"
+buttonRadius = "full"
+showSidebarBorder = false
+font = "Onest:https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap, sans-serif"
+headingFont = "Onest, sans-serif"
+chartCategoricalColors = ["#A8323F", "#4F79B8", "#B5862A"]
+
+[[theme.fontFaces]]
+family = "Letopis Display"
+url = "app/static/LetopisDisplay-Regular.otf"
+
+[theme.sidebar]
+backgroundColor = "#4A1A20"
+secondaryBackgroundColor = "#5E2A31"
+textColor = "#FBEDEE"
+primaryColor = "#E17980"
+borderColor = "#6E3A41"
