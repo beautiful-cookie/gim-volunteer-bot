@@ -243,7 +243,14 @@ def assess(c, rubric, provider, runs=3, temperature=0.3):
                     cat_votes[h] = cat_votes.get(h, 0) + 1
                     cat_quotes.setdefault(h, q)
             else:
-                off_category.add(cat)
+                # Модель ошиблась с категорией: «стартап по организации мероприятий» назвала работой с детьми.
+                # Переносим цитату в те категории, чьи ключевые слова в ней есть, а не выбрасываем.
+                moved = {k for k, pattern in keywords.items() if re.search(pattern, q.lower())}
+                for h in moved:
+                    cat_votes[h] = cat_votes.get(h, 0) + 1
+                    cat_quotes.setdefault(h, q)
+                if not moved:
+                    off_category.add(cat)
         has_any.append(a.experience.has_any_experience)
 
     scores = {}

@@ -98,10 +98,13 @@ def make_inline_asker(provider):
 
         question = str(reply.get("question", "")).strip()
         quote = str(reply.get("quote", "")).strip()
+        # Модель иногда задаёт два вопроса подряд. Оставляем первый — часто он и есть хороший вопрос.
+        if question.count("?") > 1:
+            question = question[:question.index("?") + 1]
         all_text = " ".join(str(v) for v in answers.values() if isinstance(v, str))
         problem = check_question(question, quote, answer, all_text, rubric)
         if problem:
-            print(f"Уточнение к «{key}» отклонено ({problem}): {question}")
+            print(f"Уточнение к «{key}» отклонено ({problem}): {question} | цитата модели: «{quote}»")
             return None
         return question
 

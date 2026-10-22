@@ -45,7 +45,7 @@ def check_guard():
     assert ask({**good, "question": "Как у вас со здоровьем для работы с детьми?"}) is None        # чувствительно
     assert ask({**good, "quote": "Мечтаю работать хранителем"}) is None                           # цитаты нет
     assert ask({**good, "question": "Сколько детей было в твоём отряде?"}) is None                # на «ты»
-    assert ask({**good, "question": "Что делали? А как долго?"}) is None                          # два вопроса
+    assert ask({**good, "question": "Что вы делали с детьми? А как долго?"}) == "Что вы делали с детьми?"  # первый из двух
     assert ask({**good, "question": "Расскажите подробнее о работе вожатой."}) is not None        # просьба — можно
     assert ask({**good, "question": "Работа вожатой интересная."}) is None                        # не вопрос
     assert ask(LLMError("нет сети")) is None
