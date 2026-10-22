@@ -1,0 +1,11 @@
+# Ключи и персональные данные в образ не кладём: они подключаются при запуске (env_file и папка data).
+.env
+data/
+.git/
+.claude/
+.vkbottle/
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.log

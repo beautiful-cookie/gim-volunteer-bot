@@ -101,6 +101,12 @@ def main():
         for reply in replies:
             await message.answer(reply.text, keyboard=to_keyboard(reply.buttons))
 
+    @bot.on.chat_message()
+    async def on_chat_message(message: Message):
+        """В беседе бот отвечает только на «/id» — так куратор узнаёт peer_id беседы для VK_CURATOR_PEER_ID."""
+        if (message.text or "").strip().lower().endswith("/id"):
+            await message.answer(f"Номер этой беседы для настройки бота: VK_CURATOR_PEER_ID={message.peer_id}")
+
     # Сервисный ключ приложения ВК открывает подписки и друзей кандидата. Без него — только профиль и музеи.
     service_token = os.environ.get("VK_SERVICE_TOKEN")
     service_api = API(service_token) if service_token else None

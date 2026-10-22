@@ -1,0 +1,65 @@
+# Запуск всего проекта одной командой (подробно — docs/install.md):
+#     docker compose up -d --build
+#
+# bot        — бот ВКонтакте: анкеты, оценка, карточки кураторам, опрос через четыре месяца, дообучение модели
+# dashboard  — дашборд кураторов на http://localhost:8501 (снаружи сервера закрыт, см. https)
+# backup     — раз в сутки копия базы бота в data/backups, хранятся последние 14
+# https      — необязательно: дашборд по адресу https://<DASHBOARD_DOMAIN> с сертификатом Let's Encrypt
+#              docker compose --profile https up -d
+#
+# Данные (база бота, логи, копии) лежат в папке data рядом с этим файлом, настройки рубрики — в config.
+# Их можно править без пересборки: после правки config/rubric.yaml — docker compose restart.
+
+# Имя проекта задано явно: иначе Docker берёт его из названия папки, а из кириллицы («Хакатон») получается пустое.
+name: gim-volunteer-bot
+
+x-app: &app
+  build: .
+  image: gim-volunteer-bot:latest
+  env_file: .env
+  environment:
+    # Корневой сертификат Минцифры для GigaChat уже в репозитории — путь из .env здесь не нужен.
+    GIGACHAT_CA_BUNDLE: /app/config/certs/russian_trusted_root_ca.pem
+  volumes:
+    - ./data:/app/data
+    - ./config:/app/config
+  restart: unless-stopped
+
+services:
+  bot:
+    <<: *app
+    command: python -m bot.vk_bot
+
+  dashboard:
+    <<: *app
+    command: >
+      streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
+      --server.headless true --browser.gatherUsageStats false
+    # Только для этого компьютера. Чтобы открыть кураторам снаружи — профиль https ниже, а не 0.0.0.0.
+    ports:
+      - "127.0.0.1:8501:8501"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 1m
+      timeout: 10s
+
+  backup:
+    <<: *app
+    command: python scripts/backup_db.py --every-hours 24 --keep 14
+
+  https:
+    image: caddy:2
+    profiles: ["https"]
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - dashboard
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
