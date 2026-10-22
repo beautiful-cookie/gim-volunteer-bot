@@ -24,7 +24,7 @@ from dashboard import candidate, candidates, overview, theme  # noqa: E402
 from dashboard.data import BOT_DB, apply_weights, factor_titles, item_titles, load_bot, load_historical  # noqa: E402
 from dashboard.export import build_excel  # noqa: E402
 from dashboard.navigation import CANDIDATE, CANDIDATES, OVERVIEW, VIEWS  # noqa: E402
-from dashboard.weights import factor_defaults, item_weights  # noqa: E402
+from dashboard.weights import factor_defaults, factors_with_data, item_weights  # noqa: E402
 from scorer.llm import load_env  # noqa: E402
 
 BOT_SOURCE = "Текущий набор"
@@ -93,17 +93,19 @@ with st.sidebar:
     free_places = st.number_input("Свободных мест", min_value=1, max_value=100, value=18,
                                   help="Сколько человек музей готов взять в этот набор.")
 
+    raw = load(source)
+    shown_factors = factors_with_data(raw, factors) if not raw.empty else factors
+
     st.markdown("**Важность факторов**")
     st.caption("1 — слабое влияние на балл, 5 — сильное.")
     for factor, value in factor_defaults().items():
         st.session_state.setdefault(f"importance_{factor}", value)
-    importance = {}
-    for factor in factors:
+    # Скрытый фактор (без данных) остаётся с важностью по рубрике.
+    importance = dict(factor_defaults())
+    for factor in shown_factors:
         importance[factor] = st.slider(theme.FACTOR_SHORT.get(factor, factors[factor]), 1, 5,
                                        key=f"importance_{factor}", help=theme.FACTOR_HINTS.get(factor))
     st.button("Вернуть важность по рубрике музея", on_click=reset_importance, width="stretch")
-
-raw = load(source)
 
 st.title("Отбор волонтёров")
 if raw.empty:
@@ -133,8 +135,8 @@ st.write("")
 
 view = st.session_state.get("view") or OVERVIEW
 if view == OVERVIEW:
-    overview.render(df, factors, free_places)
+    overview.render(df, shown_factors, free_places)
 elif view == CANDIDATES:
-    candidates.render(df, factors, free_places, excel_bytes, excel_name)
+    candidates.render(df, shown_factors, free_places, excel_bytes, excel_name)
 elif view == CANDIDATE:
-    candidate.render(df, factors, items, weights, storage, decisions)
+    candidate.render(df, shown_factors, items, weights, storage, decisions)

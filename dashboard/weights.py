@@ -31,6 +31,23 @@ def item_weights(factor_importance):
     return weights
 
 
+def factors_with_data(raw, factors, min_share=0.5):
+    """Факторы, по которым есть баллы хотя бы у половины анкет, — только их показываем куратору.
+
+    «Подходит направлению» оценивает нейросеть. Без её оценки правило ставит 0 лишь тем,
+    кто выбрал все направления или «не определился», у остальных балла нет — и среднее выходит нулём.
+    """
+    items_by_factor = {}
+    for item in load_rubric()["items"]:
+        items_by_factor.setdefault(item["factor"], []).append(f"s_{item['id']}")
+    shown = {}
+    for factor, title in factors.items():
+        columns = [c for c in items_by_factor.get(factor, []) if c in raw.columns]
+        if columns and raw[columns].notna().any(axis=1).mean() >= min_share:
+            shown[factor] = title
+    return shown
+
+
 def grade_thresholds():
     """Пороги индекса для оценок 1, 2, 3 (например, 40 / 55 / 70)."""
     return load_rubric()["grade_thresholds"]
