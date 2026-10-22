@@ -55,4 +55,4 @@
 - Самообучение модели — `bot/retrain.py`: версии в таблице `model_versions`, действующая — последняя принятая,
   без версий — `config/model.json`. Признаки бота для модели — `bot.application.model_features`.
 - Конфигурация запуска дашборда для превью — `.claude/launch.json` («dashboard», порт 8501;
-  «dashboard-demo», порт 8502 — на демобазе `data/selftest_survey.sqlite3`).
+  «dashboard-demo», порт 8502 — на демобазе `data/demo.sqlite3` из `scripts/make_demo.py`).

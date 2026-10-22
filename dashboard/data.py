@@ -56,7 +56,8 @@ def load_bot():
             answers["ВКонтакте (автоматически)"] = result["vk_summary"]
         record = dict(
             key=f"bot:{app_id}", source="Бот", label=f"№{app_id}", name=answers.get("fio", ""),
-            vk_url=f"https://vk.com/id{user_id}", submitted_at=submitted_at, status=status,
+            # У вымышленных кандидатов демобазы (scripts/make_demo.py) ссылки нет: номер мог бы оказаться чужой страницей.
+            vk_url="" if result.get("demo") else f"https://vk.com/id{user_id}", submitted_at=submitted_at, status=status,
             city=answers.get("city", ""), course=answers.get("course", "") or "не учится",
             hours_month=answers.get("hours_month", ""), channel=answers.get("source", ""),
             directions=answers.get("directions", []),

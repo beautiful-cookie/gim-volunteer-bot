@@ -110,6 +110,8 @@ with st.sidebar:
     st.button("Вернуть важность по рубрике музея", on_click=reset_importance, width="stretch")
 
 st.title("Отбор волонтёров")
+if os.environ.get("GIM_DEMO"):
+    st.html('<p class="lead"><b>Демонстрация:</b> все кандидаты и ответы вымышленные (scripts/make_demo.py).</p>')
 if raw.empty:
     overview.empty_state(on_show_history=show_history)
     st.stop()

@@ -4,6 +4,8 @@
 # bot        — бот ВКонтакте: анкеты, оценка, карточки кураторам, опрос через четыре месяца, дообучение модели
 # dashboard  — дашборд кураторов на http://localhost:8501 (снаружи сервера закрыт, см. https)
 # backup     — раз в сутки копия базы бота в data/backups, хранятся последние 14
+# demo       — необязательно: дашборд на вымышленных кандидатах на http://localhost:8502
+#              docker compose --profile demo up -d
 # https      — необязательно: дашборд по адресу https://<DASHBOARD_DOMAIN> с сертификатом Let's Encrypt
 #              docker compose --profile https up -d
 #
@@ -46,6 +48,19 @@ services:
   backup:
     <<: *app
     command: python scripts/backup_db.py --every-hours 24 --keep 14
+
+  demo:
+    <<: *app
+    profiles: ["demo"]
+    # Отдельная база с вымышленными кандидатами: настоящие анкеты в демонстрации не участвуют.
+    environment:
+      GIM_BOT_DB: /app/data/demo.sqlite3
+      GIM_DEMO: "1"
+    command: >
+      sh -c "python scripts/make_demo.py && streamlit run dashboard/app.py --server.address 0.0.0.0
+      --server.port 8502 --server.headless true --browser.gatherUsageStats false"
+    ports:
+      - "127.0.0.1:8502:8502"
 
   https:
     image: caddy:2

@@ -68,6 +68,14 @@ python scripts/check_setup.py           # проверить .env и ключи 
 (`docker compose up -d --build`). Пошаговая инструкция для человека без опыта программирования —
 [docs/install.md](docs/install.md).
 
+Посмотреть систему без ключей и настоящих анкет — демонстрация на вымышленных кандидатах:
+
+```bash
+python scripts/make_demo.py             # data/demo.sqlite3: 28 кандидатов, решения, опрос, версия модели
+GIM_BOT_DB=data/demo.sqlite3 GIM_DEMO=1 streamlit run dashboard/app.py --server.port 8502
+docker compose --profile demo up -d --build demo   # то же в Docker
+```
+
 ## Данные и модель (исторические анкеты)
 
 Исходные таблицы музея передаются отдельно и кладутся куда угодно вне репозитория:
