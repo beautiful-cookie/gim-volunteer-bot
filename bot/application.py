@@ -4,6 +4,8 @@ import math
 import re
 from pathlib import Path
 
+from bot.questionnaire import age_on, parse_birth_date
+from bot.vk_profile import profile_summary
 from scorer.extract import assess
 from scorer.score import aggregate, item_scores, load_rubric
 from scripts.clean_anketa import PROFILE, field_group
@@ -112,12 +114,17 @@ def fio_matches_vk(fio, vk_name):
     return bool(fio_words & vk_words)
 
 
-def score_application(answers, provider, runs=3, vk_name=None):
-    """vk_name — «Имя Фамилия» из профиля ВК: по нему проверяем, что ФИО настоящее."""
+def score_application(answers, provider, runs=3, vk_profile=None):
+    """vk_profile — признаки страницы ВК из bot.vk_profile.analyze_profile (или None, если не получили)."""
     rubric = load_rubric()
     candidate = to_candidate(answers)
+    profile = vk_profile or {}
+    candidate["vk_open"] = profile.get("open")
+    candidate["vk_museum_groups"] = profile.get("museum_groups")
+    candidate["vk_museum_subscriptions"] = profile.get("museum_subscriptions")
+    candidate["vk_volunteer_friends"] = profile.get("volunteer_friends")
     # Само ФИО в LLM не передаём (персональные данные) — только итог проверки.
-    match = fio_matches_vk(answers.get("fio", ""), vk_name)
+    match = fio_matches_vk(answers.get("fio", ""), profile.get("name"))
     if match is True:
         candidate["fio_note"] = "ФИО совпадает с профилем ВКонтакте"
     elif match is False:
@@ -134,10 +141,28 @@ def score_application(answers, provider, runs=3, vk_name=None):
     if llm and llm.get("ok"):
         result.update(summary=llm["summary"], recommended_direction=llm["recommended_direction"],
                       interview_questions=llm["interview_questions"], categories=llm["categories"])
-    result["yellow_flags"] = yellow_flags(answers)
+    result["yellow_flags"] = yellow_flags(answers) + vk_flags(answers, profile)
     if match is False:
         result["yellow_flags"].insert(0, "ФИО не совпадает с профилем ВК")
+    result["vk_summary"] = profile_summary(vk_profile)
     return result
+
+
+def vk_flags(answers, profile):
+    """Расхождения анкеты со страницей ВК — повод уточнить на собеседовании, а не приговор."""
+    flags = []
+    if profile.get("open") is False:
+        flags.append("закрытый профиль ВК")
+    vk_city = profile.get("city")
+    if answers.get("city") == "Москва" and vk_city and vk_city != "Москва":
+        flags.append(f"в ВК указан город {vk_city}")
+    vk_birth = profile.get("bdate")
+    form_birth = parse_birth_date(answers.get("birth_date", ""))
+    if vk_birth and form_birth and vk_birth != form_birth:
+        flags.append("дата рождения в ВК другая")
+        if age_on(vk_birth) < 18:
+            flags.insert(0, "по данным ВК младше 18")
+    return flags
 
 
 def yellow_flags(answers):
@@ -178,6 +203,8 @@ def curator_card(app_id, user_id, answers, result):
     ]
     if result["yellow_flags"]:
         lines.append("Флаги: " + ", ".join(result["yellow_flags"]))
+    if result.get("vk_summary"):
+        lines.append("ВКонтакте: " + result["vk_summary"])
     if result["summary"]:
         lines.append("\n" + result["summary"])
     if result["recommended_direction"]:

@@ -11,6 +11,14 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 
+def safe_cell(value):
+    """Защита от подстановки формул: ответ кандидата «=HYPERLINK(…)» Excel выполнил бы как формулу.
+    Такой текст начинаем с апострофа — Excel покажет его как обычный текст."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 def ranking_sheet(df, factor_titles, item_titles, decisions):
     rows = []
     for place, (_, c) in enumerate(df.sort_values("index", ascending=False).iterrows(), 1):
@@ -76,7 +84,7 @@ def build_excel(df, factor_titles, item_titles, decisions):
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         for name, table in sheets.items():
-            table.to_excel(writer, sheet_name=name, index=False)
+            table.map(safe_cell).to_excel(writer, sheet_name=name, index=False)
 
     # Оформление: жирная шапка, закреплённая первая строка, фильтр, разумная ширина столбцов.
     buffer.seek(0)

@@ -46,6 +46,8 @@ def load_bot():
     for app_id, user_id, submitted_at, status, answers_json, result_json in rows:
         answers = json.loads(answers_json)
         result = json.loads(result_json) if result_json else {}
+        if result.get("vk_summary"):
+            answers["ВКонтакте (автоматически)"] = result["vk_summary"]
         record = dict(
             key=f"bot:{app_id}", source="Бот", label=f"№{app_id}", name=answers.get("fio", ""),
             vk_url=f"https://vk.com/id{user_id}", submitted_at=submitted_at, status=status,

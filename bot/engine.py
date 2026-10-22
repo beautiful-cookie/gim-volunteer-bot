@@ -6,17 +6,19 @@
 
 Состояние диалога — обычный словарь, который хранится в SQLite между сообщениями:
     step       — где сейчас кандидат: "intro", "consent", "q:<ключ>", "other:<ключ>", "clarify:<ключ>",
-                 "followup", "summary", "edit", "done", "stopped"
+                 "inline:<ключ>", "followup", "summary", "edit", "done", "stopped"
     answers    — ответы анкеты
     history    — ключи вопросов, на которые уже ответили (для кнопки «Назад»)
     picked     — отмеченные варианты в вопросе с несколькими ответами
-    followups  — уточняющие вопросы бота и ответы на них
+    inline     — уточнения GigaChat сразу после открытых вопросов: [{key, question, answer}]
+    followups  — уточняющие вопросы в конце анкеты и ответы на них
 """
 from dataclasses import dataclass, field
 
 from .questionnaire import INTRO, PRIVACY_URL, QUESTION_BY_KEY, QUESTIONS, SECTIONS, is_vague, too_young
 
 MAX_BUTTONS = 10  # ограничение ВК для inline-клавиатуры
+MAX_INLINE = 3    # не больше трёх уточнений GigaChat по ходу анкеты, чтобы не утомлять кандидата
 
 
 @dataclass
@@ -42,14 +44,21 @@ TEXT_COMMANDS = {"назад": "back", "продолжить позже": "later
 
 
 def new_state():
-    return {"step": "intro", "answers": {}, "history": [], "picked": [], "followups": [], "followup_index": 0}
+    return {"step": "intro", "answers": {}, "history": [], "picked": [], "inline": [],
+            "followups": [], "followup_index": 0}
 
 
 class Dialog:
-    def __init__(self, storage, plan_followups):
-        """storage — bot.storage.Storage; plan_followups(answers) → список уточняющих вопросов."""
+    def __init__(self, storage, plan_followups, ask_inline=None, fit_hint=None):
+        """storage — bot.storage.Storage;
+        plan_followups(answers) → список уточняющих вопросов для конца анкеты;
+        ask_inline(key, question, answer, answers, asked) → уточнение GigaChat или None (bot.inline_questions);
+        fit_hint(answers) → подсказка кандидату после отправки анкеты (bot.fit_hint).
+        """
         self.storage = storage
         self.plan_followups = plan_followups
+        self.ask_inline = ask_inline
+        self.fit_hint = fit_hint
 
     # ------------------------------------------------------------ вход
 
@@ -101,6 +110,8 @@ class Dialog:
             return self.on_other_text(state, QUESTION_BY_KEY[step[6:]], text)
         if step.startswith("clarify:"):
             return self.on_clarification(state, step[8:], text)
+        if step.startswith("inline:"):
+            return self.on_inline_answer(state, step[7:], text, payload)
         if step == "followup":
             return self.on_followup(state, text, payload)
         if step == "summary":
@@ -213,13 +224,47 @@ class Dialog:
             state["step"] = "stopped"
             return [Reply(stop_reason)]
 
-        # Один раз переспрашиваем, если ответ на открытый вопрос получился слишком общим.
+        # Сначала пробуем уточнение от GigaChat: оно привязано к тому, что кандидат написал.
+        inline = self.inline_question(state, question, value)
+        if inline:
+            return [inline]
+
+        # Если GigaChat промолчал или недоступна — один раз переспрашиваем слишком общий ответ заготовкой.
         clarified = state["answers"].setdefault("_clarified", [])
         if question.clarify and question.key not in clarified and is_vague(value):
             clarified.append(question.key)
             state["step"] = "clarify:" + question.key
             return [Reply(question.clarify)]
         return self.go_to_next(state, after=question.key)
+
+    def inline_question(self, state, question, value):
+        """Уточнение GigaChat сразу после ответа или None (нет LLM, исчерпан лимит, вопрос не прошёл проверку)."""
+        inline = state.setdefault("inline", [])
+        if self.ask_inline is None or not question.llm_followup or len(inline) >= MAX_INLINE:
+            return None
+        if any(item["key"] == question.key for item in inline):
+            return None
+        asked = [item["question"] for item in inline]
+        text = self.ask_inline(question.key, question.text, value, public_answers(state), asked)
+        if not text:
+            return None
+        inline.append({"key": question.key, "question": text, "answer": None})
+        state["answers"].setdefault("_clarified", []).append(question.key)   # заготовку уже не задаём
+        state["step"] = "inline:" + question.key
+        return self.inline_message(text)
+
+    def inline_message(self, text):
+        return Reply(text, [[Button("Пропустить", {"cmd": "skip"})], [BACK, LATER]])
+
+    def on_inline_answer(self, state, key, text, payload):
+        current = next(item for item in state["inline"] if item["key"] == key)
+        if payload.get("cmd") == "skip":
+            current["answer"] = ""
+        elif len(text) < 2:
+            return [Reply("Напишите ответ текстом или нажмите «Пропустить».")]
+        else:
+            current["answer"] = text
+        return self.go_to_next(state, after=key)
 
     def on_clarification(self, state, key, text):
         if text:
@@ -241,10 +286,11 @@ class Dialog:
         return self.start_followups(state)
 
     def go_back(self, state):
-        if not state["history"] or not state["step"].startswith(("q:", "other:", "clarify:")):
+        if not state["history"] or not state["step"].startswith(("q:", "other:", "clarify:", "inline:")):
             return [Reply("Назад вернуться нельзя."), *self.repeat_current(state)]
         previous_key = state["history"].pop()
         state["answers"].pop(previous_key, None)
+        forget_inline(state, previous_key)
         state["picked"] = []
         return [self.ask(state, QUESTION_BY_KEY[previous_key])]
 
@@ -259,6 +305,9 @@ class Dialog:
             return [Reply("Уточните, пожалуйста, текстом:")]
         if step.startswith("clarify:"):
             return [Reply(QUESTION_BY_KEY[step[8:]].clarify)]
+        if step.startswith("inline:"):
+            current = next(item for item in state["inline"] if item["key"] == step[7:])
+            return [self.inline_message(current["question"])]
         if step == "followup":
             return [self.followup_message(state)]
         if step == "summary":
@@ -314,10 +363,18 @@ class Dialog:
 
     def on_summary(self, state, payload):
         if payload.get("cmd") == "submit":
-            self.storage.add_application(state["user_id"], public_answers(state))
+            answers = public_answers(state)
+            # Подсказка «насколько программа вам подходит» — сохраняем и её, чтобы куратор видел, что сказал бот.
+            hint = self.fit_hint(answers) if self.fit_hint else ""
+            if hint:
+                answers["fit_hint"] = hint
+            self.storage.add_application(state["user_id"], answers)
             state["step"] = "done"
-            return [Reply("Спасибо! Анкета отправлена. Куратор программы рассмотрит её и свяжется с вами "
-                          "во ВКонтакте. Обычно это занимает до двух недель.")]
+            replies = [Reply("Спасибо! Анкета отправлена. Куратор программы рассмотрит её и свяжется с вами "
+                             "во ВКонтакте. Обычно это занимает до двух недель.")]
+            if hint:
+                replies.append(Reply(hint))
+            return replies
         if payload.get("cmd") == "edit":
             state["step"] = "edit"
             return [Reply("Напишите номер пункта, который хотите исправить.")]
@@ -329,8 +386,7 @@ class Dialog:
             return [Reply(f"Напишите число от 1 до {len(answered)}.")]
         question = answered[int(text) - 1][0]
         state["answers"].pop(question.key, None)
-        if question.key in state["answers"].get("_clarified", []):
-            state["answers"]["_clarified"].remove(question.key)
+        forget_inline(state, question.key)
         return [self.ask(state, question)]
 
 
@@ -364,10 +420,23 @@ def answered_questions(state):
     return result
 
 
+def forget_inline(state, key):
+    """Ответ на вопрос стёрт («Назад» или исправление) — уточнение к нему можно задать заново."""
+    state["inline"] = [item for item in state.get("inline", []) if item["key"] != key]
+    clarified = state["answers"].get("_clarified", [])
+    if key in clarified:
+        clarified.remove(key)
+
+
 def public_answers(state):
-    """Ответы без служебных полей и без ответов на вопросы, ставшие неактуальными после исправлений."""
+    """Ответы без служебных полей и без ответов на вопросы, ставшие неактуальными после исправлений.
+
+    В followups сначала идут уточнения GigaChat по ходу анкеты (на которые ответили), потом вопросы из конца анкеты.
+    """
     answers = {q.key: value for q, value in answered_questions(state)}
-    answers["followups"] = [(f["question"], f["answer"]) for f in state.get("followups", [])]
+    inline = [(item["question"], item["answer"]) for item in state.get("inline", [])
+              if item["answer"] is not None and item["key"] in answers]
+    answers["followups"] = inline + [(f["question"], f["answer"]) for f in state.get("followups", [])]
     return answers
 
 

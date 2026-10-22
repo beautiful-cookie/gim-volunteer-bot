@@ -24,12 +24,16 @@ import certifi  # noqa: E402
 # Строка должна стоять до импорта vkbottle: aiohttp создаёт SSL-контекст при импорте.
 os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 
-from vkbottle import Keyboard, KeyboardButtonColor, Text  # noqa: E402
+from vkbottle import API, Keyboard, KeyboardButtonColor, Text  # noqa: E402
 from vkbottle.bot import Bot, Message  # noqa: E402
 
 from bot.application import curator_card, score_application  # noqa: E402
 from bot.engine import Dialog  # noqa: E402
 from bot.followups import make_planner  # noqa: E402
+from bot.fit_hint import make_fit_hint  # noqa: E402
+from bot.inline_questions import make_inline_asker  # noqa: E402
+from bot.vk_profile import analyze_profile  # noqa: E402
+from scorer.score import load_rubric  # noqa: E402
 from bot.storage import Storage  # noqa: E402
 from scorer.llm import LLMError, load_env, make_provider  # noqa: E402
 
@@ -64,38 +68,41 @@ def main():
 
     try:
         provider = make_provider("auto")
+        # Для уточнений прямо в диалоге берём быструю модель: кандидат ждёт ответа в чате.
+        fast_provider = make_provider("auto", gigachat_model=os.environ.get("GIGACHAT_FAST_MODEL", "GigaChat-2"))
     except LLMError as error:
         print(f"LLM не подключена ({error}) — бот работает на правилах.")
-        provider = None
+        provider = fast_provider = None
 
     storage = Storage(ROOT / "data" / "bot.sqlite3")
-    dialog = Dialog(storage, make_planner(provider))
+    dialog = Dialog(storage, make_planner(provider), make_inline_asker(fast_provider), make_fit_hint(fast_provider))
     bot = Bot(token=token)
 
     @bot.on.private_message()
     async def on_message(message: Message):
         payload = message.get_payload_json() or {}
+        # Пока GigaChat думает над уточнением, кандидат видит «печатает…».
+        try:
+            await bot.api.messages.set_activity(peer_id=message.peer_id, type="typing")
+        except Exception:
+            pass
         # Движок может ждать ответа LLM (уточняющие вопросы), поэтому вызываем его в отдельном потоке.
         replies = await asyncio.to_thread(dialog.handle, message.from_id, message.text, payload)
         for reply in replies:
             await message.answer(reply.text, keyboard=to_keyboard(reply.buttons))
 
-    async def get_vk_name(user_id):
-        """«Имя Фамилия» из профиля ВК — чтобы сверить с ФИО в анкете. Не получилось — None."""
-        try:
-            users = await bot.api.users.get(user_ids=[user_id])
-            return f"{users[0].first_name} {users[0].last_name}"
-        except Exception as error:
-            print(f"Не удалось получить профиль {user_id}: {error}")
-            return None
+    # Сервисный ключ приложения ВК открывает подписки и друзей кандидата. Без него — только профиль и музеи.
+    service_token = os.environ.get("VK_SERVICE_TOKEN")
+    service_api = API(service_token) if service_token else None
+    vk_config = load_rubric()["vk_analysis"]
 
     async def process_new_applications():
-        """Каждые полминуты берём отправленные анкеты, считаем баллы и шлём карточку кураторам."""
+        """Каждые полминуты берём отправленные анкеты, смотрим страницу ВК, считаем баллы и шлём карточку кураторам."""
         while True:
             for app_id, user_id, answers in storage.new_applications():
                 try:
-                    vk_name = await get_vk_name(user_id)
-                    result = await asyncio.to_thread(score_application, answers, provider, 3, vk_name)
+                    profile = await analyze_profile(bot.api, user_id, vk_config, service_api)
+                    result = await asyncio.to_thread(score_application, answers, provider, 3, profile)
                     storage.save_result(app_id, result)
                     print(f"Анкета {app_id}: оценка {result['grade']}, индекс {result['index']}")
                     if curator_peer:
