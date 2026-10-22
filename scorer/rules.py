@@ -88,5 +88,34 @@ def experience_from_categories(found, item, has_any):
     return 1 if has_any else 0
 
 
+def count_points(count, points):
+    """Сколько найдено → балл: 2 и больше, одно, ни одного. None — не проверяли."""
+    if count is None:
+        return None
+    if count >= 2:
+        return points["many"]
+    return points["one"] if count == 1 else points["none"]
+
+
+def vk_museum_interest(c, item):
+    """Музейные сообщества и подписки ВКонтакте (bot/vk_profile.py). Не проверяли — пункт пропускается."""
+    groups, subscriptions = c.get("vk_museum_groups"), c.get("vk_museum_subscriptions")
+    if groups is None and subscriptions is None:
+        return None
+    return count_points(len(set(groups or []) | set(subscriptions or [])), item["points"])
+
+
+def vk_volunteer_network(c, item):
+    return count_points(c.get("vk_volunteer_friends"), item["points"])
+
+
+def vk_open_profile(c, item):
+    is_open = c.get("vk_open")
+    if is_open is None:
+        return None
+    return item["points"]["open" if is_open else "closed"]
+
+
 RULES = {"source": source, "status": status, "course": course, "hours_month": hours_month,
-         "geography": geography, "faculty": faculty, "hobby": hobby}
+         "geography": geography, "faculty": faculty, "hobby": hobby, "vk_museum_interest": vk_museum_interest,
+         "vk_volunteer_network": vk_volunteer_network, "vk_open_profile": vk_open_profile}
