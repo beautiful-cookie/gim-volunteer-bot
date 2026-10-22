@@ -8,6 +8,7 @@
     VK_CURATOR_PEER_ID   — peer_id беседы кураторов (2000000000 + номер беседы), сюда приходят карточки анкет
     SURVEY_AFTER_DAYS    — необязательно: через сколько дней после «Взят в команду» прислать опрос
                            (по умолчанию из rubric.yaml, 120; 0 — сразу, для показа)
+    SURVEY_CHECK_EVERY   — необязательно: как часто проверять опросы, в секундах (по умолчанию 600)
 В настройках сообщества включите «Сообщения» и «Возможности ботов».
 
 Кроме диалога, бот в фоне: оценивает новые анкеты, напоминает о брошенных, рассылает опрос через
@@ -136,6 +137,7 @@ def main():
 
     survey_config = load_rubric()["checkin_survey"]
     survey_after_days = float(os.environ.get("SURVEY_AFTER_DAYS") or survey_config["after_days"])
+    check_surveys_every = int(os.environ.get("SURVEY_CHECK_EVERY") or CHECK_SURVEYS_EVERY)
 
     async def send(peer_id, reply):
         await bot.api.messages.send(peer_id=peer_id, random_id=0, message=reply.text,
@@ -146,6 +148,9 @@ def main():
         while True:
             try:
                 for app_id, user_id, answers in storage.applications_due_for_survey(survey_after_days):
+                    # У человека может быть несколько анкет (подавал повторно) — не больше одного опроса за раз.
+                    if dialog.survey_reminder(user_id):
+                        continue
                     survey_id = storage.create_survey(app_id, user_id)
                     try:
                         await send(user_id, dialog.start_survey(user_id, survey_id, answers))
@@ -168,7 +173,7 @@ def main():
                     storage.mark_survey_notified(item["id"])
             except Exception as error:
                 print(f"Опрос волонтёров: ошибка — {error}")
-            await asyncio.sleep(CHECK_SURVEYS_EVERY)
+            await asyncio.sleep(check_surveys_every)
 
     async def retrain_model():
         """Раз в несколько часов: если опросов с прошлой попытки прибавилось, модель переобучается."""
