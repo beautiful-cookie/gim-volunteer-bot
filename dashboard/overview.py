@@ -29,15 +29,10 @@ def summary_text(df, free_places):
     flagged = int(df["flags"].apply(bool).sum())
     demand = Counter(d for ds in df["directions"] for d in ds).most_common()
 
-    parts = [f"В наборе <b>{total} {plural(total, 'анкета', 'анкеты', 'анкет')}</b>."]
-    if strong >= free_places:
-        parts.append(f"Сильных — <b>{strong}</b>: хватает, чтобы заполнить все {free_places} свободных мест.")
-    else:
-        parts.append(f"Сильных — <b>{strong}</b> на {free_places} свободных мест: "
-                     f"часть мест придётся отдать хорошим анкетам.")
+    parts = [f"В наборе <b>{total} {plural(total, 'анкета', 'анкеты', 'анкет')}</b>, "
+             f"сильных — <b>{strong}</b>, свободных мест — <b>{free_places}</b>."]
     if flagged:
-        parts.append(f"У <b>{flagged}</b> {plural(flagged, 'кандидата', 'кандидатов', 'кандидатов')} "
-                     f"есть детали, которые стоит уточнить на собеседовании.")
+        parts.append(f"У <b>{flagged}</b> {plural(flagged, 'кандидата', 'кандидатов', 'кандидатов')} есть замечания.")
     if len(demand) >= 2:
         parts.append(f"Чаще всего выбирают <b>{demand[0][0].lower()}</b> направление, "
                      f"реже всего — <b>{demand[-1][0].lower()}</b>.")
@@ -65,7 +60,7 @@ def stat_cards(df, free_places):
         with columns[2], st.container(key="card_rose_flags"):
             top = flags.most_common(1)
             note = f"Чаще всего: {theme.esc(top[0][0])} ({top[0][1]})." if top else "Замечаний нет."
-            st.html(theme.stat("Стоит уточнить", flagged, note))
+            st.html(theme.stat("С замечаниями", flagged, note))
         with columns[3], st.container(key="card_red_places"):
             left = max(free_places - invited, 0)
             share = invited / free_places if free_places else 0
@@ -127,7 +122,7 @@ def on_direction_click():
 
 def top_list(df, free_places, show=5):
     st.markdown(f"### Лучшие на {free_places} мест")
-    st.html('<div class="hint">По баллу анкеты. Нажмите «Открыть», чтобы посмотреть кандидата.</div>')
+    st.html('<div class="hint">По баллу анкеты.</div>')
     for _, c in df.head(show).iterrows():
         name = c["name"] or f"Анкета {c['label']}"
         with st.container(key=f"row_{c['key'].replace(':', '_')}"):   # ключ — для CSS: строка не переносится
@@ -169,14 +164,12 @@ def render(df, factors, free_places):
         with right, st.container(key="card_white_factors"):
             st.markdown("### Сильные и слабые стороны набора")
             st.plotly_chart(factors_chart(df, factors), key="chart_factors", config=theme.PLOTLY_CONFIG, theme=None)
-            st.html('<div class="hint">Средний балл кандидатов по каждому фактору, из 100. '
-                    'Важность факторов меняется слева.</div>')
+            st.html('<div class="hint">Средний балл по каждому фактору, из 100.</div>')
 
 
 def empty_state(on_show_history):
     with st.container(key="card_pink_empty"):
         st.markdown("### Анкет пока нет")
-        st.html('<p class="lead" style="margin:0 0 1rem">Когда кандидаты заполнят анкету в боте ВКонтакте, '
-                'они появятся здесь с баллами и подсказками к собеседованию. '
-                'Чтобы посмотреть, как всё работает, откройте прошлые наборы.</p>')
+        st.html('<p class="lead" style="margin:0 0 1rem">Здесь появятся анкеты из бота ВКонтакте. '
+                'Пример — наборы 2024–2025.</p>')
         st.button("Открыть наборы 2024–2025", type="primary", on_click=on_show_history)

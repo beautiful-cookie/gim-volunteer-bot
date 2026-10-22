@@ -100,7 +100,7 @@ def notes(c):
     if c["summary"]:
         st.html(f'<div class="section-note">{theme.esc(c["summary"])}</div>')
     else:
-        st.html('<div class="hint">Короткое описание появится, когда анкету оценит нейросеть.</div>')
+        st.html('<div class="hint">Описания нет: анкета не оценена нейросетью.</div>')
     if c["recommended_direction"]:
         st.html(f'<p style="margin-top:.8rem"><b>Подойдёт направление:</b> {theme.esc(c["recommended_direction"])}</p>')
     if c["interview_questions"]:
@@ -108,8 +108,7 @@ def notes(c):
         st.html(f'<p style="margin:.8rem 0 .2rem"><b>Спросить на собеседовании:</b></p><ol>{questions}</ol>')
     if pd.notna(c["p_success"]):
         st.html(f'<p style="margin-top:.8rem"><b>Прогноз активности:</b> {c["p_success"]:.0%} '
-                f'<span class="hint">— вероятность стать активным волонтёром по опыту прошлых наборов. '
-                f'Прошлых данных пока мало, поэтому это ориентир, а не приговор.</span></p>')
+                f'<span class="hint">— вероятность стать активным волонтёром, по данным прошлых наборов.</span></p>')
 
 
 def details(c, items, weights):

@@ -94,7 +94,7 @@ with st.sidebar:
                                   help="Сколько человек музей готов взять в этот набор.")
 
     st.markdown("**Важность факторов**")
-    st.caption("1 — почти не влияет, 5 — влияет сильнее всего. Баллы и рейтинг пересчитываются сразу.")
+    st.caption("1 — слабое влияние на балл, 5 — сильное.")
     for factor, value in factor_defaults().items():
         st.session_state.setdefault(f"importance_{factor}", value)
     importance = {}

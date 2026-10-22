@@ -27,7 +27,7 @@ def filters(df):
         search = left.text_input("Поиск", placeholder="Имя или номер анкеты", key="filter_search",
                                  label_visibility="collapsed")
         clean = right.toggle("Только без замечаний", key="filter_clean",
-                             help="Скрыть кандидатов, у которых есть что уточнить: 1 курс, только фонды и т. п.")
+                             help="Скрыть кандидатов с замечаниями: 1 курс, только фонды и т. п.")
 
     view = df
     if grades:
@@ -108,8 +108,7 @@ def compare_chart(df, keys, factors):
 
 def compare(df, factors, free_places):
     st.markdown("### Сравнить кандидатов")
-    st.html('<div class="hint">Выберите до трёх кандидатов. Сначала показаны пограничные: '
-            'последний, кто проходит на свободные места, и первый, кто не проходит.</div>')
+    st.html(f'<div class="hint">До трёх кандидатов. По умолчанию — {free_places}-е и {free_places + 1}-е места.</div>')
     labels = {c["key"]: f"{c['place']}. {display_name(c)} · {c['index']:.0f}" for _, c in df.iterrows()}
     if "compare_keys" not in st.session_state:
         border = min(free_places, len(df) - 1)   # места считаются с 1, строки — с 0
