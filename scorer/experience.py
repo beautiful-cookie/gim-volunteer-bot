@@ -107,15 +107,57 @@ def ask_json(provider, prompt, run):
     return json.loads(match.group())
 
 
-def extract_episodes(c, provider):
+# Так GigaChat отвечает, когда срабатывает его фильтр тем (например, на «Модель ООН» или «Новороссию» в опыте).
+REFUSAL = re.compile(r"разговоры на некоторые темы временно ограничены|не обладает собственным мнением")
+
+
+def split_into_parts(text, size=250):
+    """Ответ кандидата → куски примерно по size символов по границам строк и предложений."""
+    pieces = [p.strip() for p in re.split(r"\n|(?<=[.;])\s+|\s[-–—•·]\s", text) if p.strip()]
+    parts, current = [], ""
+    for piece in pieces:
+        if current and len(current) + len(piece) > size:
+            parts.append(current)
+            current = ""
+        current = f"{current} {piece}".strip()
+    if current:
+        parts.append(current)
+    return parts
+
+
+def extract_items(text, provider, run=0):
+    """Эпизоды из текста. Если GigaChat отказался (фильтр тем), разбираем текст по частям.
+    Возвращает (эпизоды, сколько частей модель так и не разобрала)."""
+    content = provider.chat([{"role": "user", "content": EXTRACT_PROMPT.format(answers=text)}], 0.3, run=run)
+    if not REFUSAL.search(content):
+        match = re.search(r"\{.*\}", content, re.S)
+        if not match:
+            raise ValueError("в ответе нет JSON")
+        return json.loads(match.group()).get("episodes") or [], 0
+    items, refused = [], 0
+    for number, part in enumerate(split_into_parts(text), 1):
+        content = provider.chat([{"role": "user", "content": EXTRACT_PROMPT.format(answers=part)}], 0.3,
+                                run=100 + number)
+        match = re.search(r"\{.*\}", content, re.S)
+        if REFUSAL.search(content) or not match:
+            refused += 1
+            continue
+        items.extend(json.loads(match.group()).get("episodes") or [])
+    return items, refused
+
+
+def extract_episodes(c, provider, notes=None):
     """Шаг 1. Эпизоды с цитатами, которые действительно есть в ответах кандидата."""
     text = experience_text(c)
     if not text.strip():
         return [], []
-    reply = ask_json(provider, EXTRACT_PROMPT.format(answers=text), run=0)
+    items, refused = extract_items(text, provider)
+    if refused and notes is not None:
+        notes.append(f"GigaChat отказался разбирать часть опыта (ограничения тем, частей: {refused}) — "
+                     "проверьте опыт вручную")
     normalized = _norm(text)
     episodes, rejected = [], []
-    for item in reply.get("episodes") or []:
+    for item in items:
         quote = str(item.get("quote", "")).strip()
         if quote and quote_found(quote, normalized):
             episodes.append({"what": str(item.get("what", "")), "where": str(item.get("where", "")),
@@ -157,7 +199,7 @@ def classify_experience(c, provider, rubric, runs=3):
     keywords = item.get("category_keywords", {})
     notes = []
     try:
-        episodes, rejected = extract_episodes(c, provider)
+        episodes, rejected = extract_episodes(c, provider, notes)
     except (LLMError, ValueError) as error:
         return {"ok": False, "notes": [f"опыт не разобран: {str(error)[:100]}"]}
     if rejected:

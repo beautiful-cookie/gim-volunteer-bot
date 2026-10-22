@@ -91,6 +91,21 @@ def check_two_step():
     r = assess(CANDIDATE, rubric, p, runs=3)
     assert "children" in r["categories"] and any("проверьте" in f for f in r["flags"]), r
 
+    # GigaChat отказался разбирать весь текст (фильтр тем) — разбираем по частям, куратору — пометка.
+    class RefusingProvider(FakeProvider):
+        def chat(self, messages, temperature, run=0):
+            prompt = messages[-1]["content"]
+            if prompt.startswith("Выпиши из ответов") and run == 0:
+                self.calls += 1
+                return "Как и любая языковая модель, GigaChat… разговоры на некоторые темы временно ограничены."
+            return super().chat(messages, temperature, run)
+
+    p = RefusingProvider([answer(3, "")] * 3, {"episodes": [episodes["episodes"][0]]},
+                         [{"labels": [{"episode": 1, "categories": ["museum_practice"]}]}] * 3)
+    r = assess(CANDIDATE, rubric, p, runs=3)
+    assert set(r["categories"]) == {"museum_practice"}, r["categories"]
+    assert any("отказался разбирать" in f for f in r["flags"]) is False   # части разобраны — пометки об отказе нет
+
     # Опыта нет вообще — шаг классификации не вызывается, балл опыта 0.
     p = FakeProvider([answer(3, "")] * 3, {"episodes": []})
     r = assess(dict(CANDIDATE, experience="", hobby="", superpower=""), rubric, p, runs=3)
