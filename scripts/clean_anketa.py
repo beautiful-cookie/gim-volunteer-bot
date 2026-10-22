@@ -504,7 +504,39 @@ def read_sheet(path, cfg):
     return rows
 
 
-def build(paths):
+def load_manual_fixes(path):
+    """Ручные правки ячеек из data/manual_fixes.yaml (в git не попадает: там тексты из анкет).
+
+    Формат — список записей:
+        - id: O24-013
+          field: experience
+          cut_from: "начало фрагмента, который нужно вырезать до конца ячейки"
+          reason: "заметка куратора в ответе кандидата"
+    """
+    if not Path(path).exists():
+        return []
+    import yaml
+    return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or []
+
+
+def apply_manual_fixes(rec, fixes, log, notes):
+    """Вырезает фрагмент из ответа кандидата. Если это заметка куратора — переносит её в notes:
+    модель её больше не увидит, а куратор — увидит."""
+    for fix in fixes:
+        if fix["id"] != rec["id"]:
+            continue
+        value = rec.get(fix["field"], "")
+        position = value.find(fix["cut_from"])
+        if position < 0:
+            print(f"Ручная правка для {fix['id']}.{fix['field']} не применена: фрагмент не найден")
+            continue
+        removed = value[position:].strip()
+        rec[fix["field"]] = value[:position].strip()
+        notes.append(removed)
+        log.fix(rec, fix["field"], value, rec[fix["field"]], f"ручная правка: {fix.get('reason', 'фрагмент удалён')}")
+
+
+def build(paths, fixes=()):
     log = Log()
     records, raw_rows = [], []
     for cfg in SHEETS:
@@ -533,6 +565,7 @@ def build(paths):
             rec["superpower"] = text(rec, log, "superpower", raw["superpower_raw"])
             parse_source(rec, raw, log)
             rec["mentions_practice"] = int(bool(re.search(r"практик", f"{rec['expectations']} {rec['source_detail']}".lower())))
+            apply_manual_fixes(rec, fixes, log, notes)
             rec["dq_flags"] = "; ".join(flags)
             rec["notes"] = "; ".join(notes)
             records.append(rec)
@@ -651,7 +684,8 @@ def main():
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    df, log, raw = build({"2024": a.in2024, "2025": a.in2025})
+    fixes = load_manual_fixes(Path(__file__).resolve().parent.parent / "data" / "manual_fixes.yaml")
+    df, log, raw = build({"2024": a.in2024, "2025": a.in2025}, fixes)
     df.to_csv(out / "anketa_clean.csv", index=False, encoding="utf-8-sig")
     write_xlsx(out / "anketa_clean.xlsx", {
         "Анкеты": df, "Исправления": log, "Вопросы представителю": questions(df),
