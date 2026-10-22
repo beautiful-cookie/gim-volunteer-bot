@@ -67,7 +67,7 @@ def check_dialog():
     dialog.handle(user, "Привет")
     dialog.handle(user, payload={"cmd": "begin"})
     dialog.handle(user, payload={"answer": "yes"})
-    for text in ["Иванова Мария Сергеевна", "ivanova@mail.ru", "05.03.2004"]:
+    for text in ["Иванова Мария Сергеевна", "ivanova@example.ru", "05.03.2004"]:
         dialog.handle(user, text)
     dialog.handle(user, payload={"answer": "Москва"})
     dialog.handle(user, payload={"toggle": "Работаю"})

@@ -6,6 +6,13 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "streamlit", "run", "dashboard/app.py", "--server.headless", "true", "--server.port", "8501", "--browser.gatherUsageStats", "false"],
       "port": 8501
+    },
+    {
+      "name": "dashboard-demo",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "streamlit", "run", "dashboard/app.py", "--server.headless", "true", "--server.port", "8502", "--browser.gatherUsageStats", "false"],
+      "env": {"GIM_BOT_DB": "data/demo.sqlite3", "GIM_DEMO": "1"},
+      "port": 8502
     }
   ]
 }

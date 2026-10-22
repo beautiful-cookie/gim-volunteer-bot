@@ -6,7 +6,9 @@
 Три раздела, от общего к частному:
     «Обзор»          — вся картина набора простыми словами и главные цифры (dashboard/overview.py);
     «Все кандидаты»  — рейтинг с фильтрами и сравнение нескольких кандидатов (dashboard/candidates.py);
-    «Кандидат»       — один человек подробно и решение куратора (dashboard/candidate.py).
+    «Кандидат»       — один человек подробно и решение куратора (dashboard/candidate.py);
+    «Сборка команды» — раскладка кандидатов по направлениям с учётом мест (dashboard/team.py);
+    «Волонтёры»      — опрос через четыре месяца и как модель учится на его ответах (dashboard/volunteers.py).
 Слева — выбор набора, число свободных мест, важность факторов (1–5) и выгрузка в Excel.
 Если в .env задан DASHBOARD_PASSWORD, дашборд сначала спросит пароль.
 """
@@ -20,10 +22,11 @@ sys.path.insert(0, str(ROOT))
 import streamlit as st  # noqa: E402
 
 from bot.storage import Storage  # noqa: E402
-from dashboard import candidate, candidates, overview, theme  # noqa: E402
-from dashboard.data import BOT_DB, apply_weights, factor_titles, item_titles, load_bot, load_historical  # noqa: E402
+from dashboard import candidate, candidates, overview, team, theme, volunteers  # noqa: E402
+from dashboard.data import (BOT_DB, apply_weights, factor_titles, item_titles, load_bot,  # noqa: E402
+                            load_historical, load_model_versions, load_surveys)
 from dashboard.export import build_excel  # noqa: E402
-from dashboard.navigation import CANDIDATE, CANDIDATES, OVERVIEW, VIEWS  # noqa: E402
+from dashboard.navigation import CANDIDATE, CANDIDATES, OVERVIEW, TEAM, VIEWS, VOLUNTEERS  # noqa: E402
 from dashboard.weights import factor_defaults, factors_with_data, item_weights  # noqa: E402
 from scorer.llm import load_env  # noqa: E402
 
@@ -113,6 +116,8 @@ with st.sidebar:
     st.button("Вернуть важность по рубрике музея", on_click=reset_importance, width="stretch")
 
 st.title("Отбор волонтёров")
+if os.environ.get("GIM_DEMO"):
+    st.html('<p class="lead"><b>Демонстрация:</b> все кандидаты и ответы вымышленные (scripts/make_demo.py).</p>')
 if raw.empty:
     overview.empty_state(on_show_history=show_history)
     st.stop()
@@ -145,3 +150,7 @@ elif view == CANDIDATES:
     candidates.render(df, shown_factors, free_places, excel_bytes, excel_name)
 elif view == CANDIDATE:
     candidate.render(df, shown_factors, items, weights, storage, decisions)
+elif view == TEAM:
+    team.render(df, storage, decisions)
+elif view == VOLUNTEERS:
+    volunteers.render(load_surveys(), load_model_versions(), BOT_SOURCE)

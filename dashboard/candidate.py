@@ -9,7 +9,8 @@ import streamlit as st
 from dashboard import theme
 from dashboard.candidates import display_name
 
-DECISIONS = ["Пригласить", "Резерв", "Отказ"]
+# «Взят в команду» — после собеседования: через четыре месяца бот пришлёт этому волонтёру опрос.
+DECISIONS = ["Пригласить", "Резерв", "Отказ", "Взят в команду"]
 
 
 # ---------------------------------------------------------------- выбор кандидата
@@ -109,6 +110,21 @@ def notes(c):
     if pd.notna(c["p_success"]):
         st.html(f'<p style="margin-top:.8rem"><b>Прогноз активности:</b> {c["p_success"]:.0%} '
                 f'<span class="hint">— вероятность стать активным волонтёром, по данным прошлых наборов.</span></p>')
+    survey_note(c)
+
+
+def survey_note(c):
+    """Ответы опроса через четыре месяца, если волонтёр его прошёл."""
+    survey = c.get("survey")
+    if not isinstance(survey, dict) or survey["status"] != "completed":
+        return
+    a = survey["answers"]
+    text = (f'доволен(льна) на <b>{theme.esc(a.get("satisfaction", "—"))} из 5</b> · ожидания: '
+            f'{theme.esc(a.get("expectations", "—")).lower()} · продолжит: {theme.esc(a.get("continue", "—")).lower()}'
+            f' · часов в месяц: {theme.esc(a.get("hours", "—"))}')
+    improve = f'<br>Что изменить: «{theme.esc(a["improve"])}»' if a.get("improve") else ""
+    warn = f'<div style="margin-top:.3rem">{theme.chip("⚠ " + survey["alert"], "chip-warn")}</div>' if survey["alert"] else ""
+    st.html(f'<p style="margin-top:.8rem"><b>Опрос через 4 месяца:</b> {text}{improve}</p>{warn}')
 
 
 def details(c, items, weights):

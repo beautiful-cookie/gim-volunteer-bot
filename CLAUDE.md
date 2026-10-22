@@ -10,7 +10,8 @@
   и не выводить без нужды. Всё это лежит в `data/` и в `.gitignore`.
 - В LLM не передаём ФИО, почту и дату рождения — только тексты ответов и итог проверки ФИО.
 - Баллы и веса меняются только в `config/rubric.yaml`; код читает рубрику оттуда.
-- Перед изменениями в боте прогонять `python scripts/simulate_bot.py`, в скоринге — `python scripts/selftest_scorer.py`.
+- Перед изменениями в боте прогонять `python scripts/simulate_bot.py`, в скоринге — `python scripts/selftest_scorer.py`,
+  в опросе и модели — `python scripts/selftest_survey.py`.
 
 ## Ключевые решения и находки
 
@@ -39,10 +40,19 @@
   текст разбирается по частям, куратору — пометка «проверьте опыт вручную».
 - Windows: сертификат api.vk.ru (HARICA) не в системном хранилище — `SSL_CERT_FILE=certifi.where()` до импорта vkbottle.
 - Без пакета `loguru` vkbottle падает при логировании ошибок и прячет настоящее исключение.
+- Docker: из кириллического пути («Хакатон») BuildKit не собирает образ (non-printable ASCII в заголовке сессии),
+  а compose не может вывести имя проекта — поэтому `name:` в docker-compose.yml, а музею — путь латиницей.
+  Проверять сборку — на копии проекта в латинском пути.
 
 ## Где что
 
 - Сценарий анкеты и тексты бота — `bot/questionnaire.py`; логика диалога — `bot/engine.py`.
 - Карточка для кураторов и жёлтые флаги — `bot/application.py`.
-- Решения кураторов — таблица `decisions` в `data/bot.sqlite3` (ключ `bot:<id>` или `hist:<id>`).
-- Конфигурация запуска дашборда для превью — `.claude/launch.json` («dashboard», порт 8501).
+- Решения кураторов — таблица `decisions` в `data/bot.sqlite3` (ключ `bot:<id>` или `hist:<id>`);
+  `decided_at` меняется только при смене решения — от него считаются четыре месяца до опроса.
+- Опрос через четыре месяца — `bot/survey.py` (ход опроса в `state["survey"]`, ответы в таблице `surveys`);
+  рассылка, напоминания и сигнал кураторам — фоновые задачи в `bot/vk_bot.py`.
+- Самообучение модели — `bot/retrain.py`: версии в таблице `model_versions`, действующая — последняя принятая,
+  без версий — `config/model.json`. Признаки бота для модели — `bot.application.model_features`.
+- Конфигурация запуска дашборда для превью — `.claude/launch.json` («dashboard», порт 8501;
+  «dashboard-demo», порт 8502 — на демобазе `data/demo.sqlite3` из `scripts/make_demo.py`).

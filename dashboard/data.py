@@ -11,6 +11,7 @@
 """
 import json
 import math
+import os
 import sqlite3
 from pathlib import Path
 
@@ -19,7 +20,8 @@ import pandas as pd
 from scorer.score import load_rubric
 
 ROOT = Path(__file__).resolve().parent.parent
-BOT_DB = ROOT / "data" / "bot.sqlite3"
+# GIM_BOT_DB — другая база бота, например демонстрационная из scripts/selftest_survey.py.
+BOT_DB = Path(os.environ.get("GIM_BOT_DB") or ROOT / "data" / "bot.sqlite3")
 SCORED = ROOT / "data" / "scored.xlsx"
 CLEAN = ROOT / "data" / "anketa_clean.csv"
 MODEL_REPORT = ROOT / "data" / "model_report.xlsx"
@@ -40,6 +42,10 @@ def load_bot():
     db = sqlite3.connect(BOT_DB)
     rows = db.execute("SELECT id, user_id, submitted_at, status, answers, result FROM applications").fetchall()
     sessions = db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+    surveys = {}
+    if has_table(db, "surveys"):
+        for app_id, status, answers, alert in db.execute("SELECT app_id, status, answers, alert FROM surveys"):
+            surveys[app_id] = dict(status=status, answers=json.loads(answers), alert=alert)
     db.close()
 
     records = []
@@ -50,7 +56,8 @@ def load_bot():
             answers["ВКонтакте (автоматически)"] = result["vk_summary"]
         record = dict(
             key=f"bot:{app_id}", source="Бот", label=f"№{app_id}", name=answers.get("fio", ""),
-            vk_url=f"https://vk.com/id{user_id}", submitted_at=submitted_at, status=status,
+            # У вымышленных кандидатов демобазы (scripts/make_demo.py) ссылки нет: номер мог бы оказаться чужой страницей.
+            vk_url="" if result.get("demo") else f"https://vk.com/id{user_id}", submitted_at=submitted_at, status=status,
             city=answers.get("city", ""), course=answers.get("course", "") or "не учится",
             hours_month=answers.get("hours_month", ""), channel=answers.get("source", ""),
             directions=answers.get("directions", []),
@@ -59,7 +66,7 @@ def load_bot():
             summary=result.get("summary", ""), recommended_direction=result.get("recommended_direction", ""),
             interview_questions=result.get("interview_questions", []),
             evidence=result.get("categories", {}), answers=answers,
-            outcome_hours=None, curator_score=None,
+            outcome_hours=None, curator_score=None, survey=surveys.get(app_id),
         )
         for item, score in (result.get("scores") or {}).items():
             record[f"s_{item}"] = score
@@ -67,6 +74,52 @@ def load_bot():
     df = pd.DataFrame(records)
     df.attrs["sessions_started"] = sessions
     return df
+
+
+def has_table(db, name):
+    return db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
+
+
+# ---------------------------------------------------------------- опрос через четыре месяца и версии модели
+
+SURVEY_STATUS = {"sent": "ждём ответа", "completed": "ответил(а)", "declined": "отказался(лась)",
+                 "expired": "не ответил(а)", "undelivered": "не доставлен"}
+
+
+def load_surveys():
+    """Опросы волонтёров с именами из анкет: одна строка — один опрос, новые сверху."""
+    if not BOT_DB.exists():
+        return pd.DataFrame()
+    db = sqlite3.connect(BOT_DB)
+    if not has_table(db, "surveys"):
+        db.close()
+        return pd.DataFrame()
+    rows = db.execute("SELECT s.app_id, s.sent_at, s.status, s.completed_at, s.answers, s.alert, a.answers, a.result "
+                      "FROM surveys s JOIN applications a ON a.id = s.app_id ORDER BY s.sent_at DESC").fetchall()
+    db.close()
+    records = []
+    for app_id, sent_at, status, completed_at, answers, alert, application, result in rows:
+        application = json.loads(application)
+        result = json.loads(result) if result else {}
+        records.append(dict(key=f"bot:{app_id}", label=f"№{app_id}", name=application.get("fio", ""),
+                            sent_at=sent_at[:10], status=status, status_text=SURVEY_STATUS.get(status, status),
+                            completed_at=(completed_at or "")[:10], answers=json.loads(answers), alert=alert,
+                            p_success=result.get("p_success")))
+    return pd.DataFrame(records)
+
+
+def load_model_versions():
+    """История дообучения модели (таблица model_versions), старые версии сверху."""
+    if not BOT_DB.exists():
+        return pd.DataFrame()
+    db = sqlite3.connect(BOT_DB)
+    if not has_table(db, "model_versions"):
+        db.close()
+        return pd.DataFrame()
+    table = pd.read_sql("SELECT id, created_at, n_history, n_survey, auc_new, auc_old, accepted, note "
+                        "FROM model_versions ORDER BY id", db)
+    db.close()
+    return table
 
 
 # ---------------------------------------------------------------- исторические анкеты
