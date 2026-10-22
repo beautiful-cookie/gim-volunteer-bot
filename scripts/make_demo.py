@@ -24,7 +24,7 @@ from bot.storage import Storage  # noqa: E402
 from scorer.score import aggregate, item_scores, load_rubric  # noqa: E402
 
 DB = ROOT / "data" / "demo.sqlite3"
-CANDIDATES = 28
+CANDIDATES = 46
 SEED = 2026
 
 FIRST_NAMES = ["Анна", "Мария", "Дарья", "Ксения", "Полина", "Елизавета", "Софья", "Алиса", "Вера", "Ульяна",
@@ -114,7 +114,11 @@ def make_result(rng, rubric, answers, experience, level):
                       "form_quality": llm_score()}}
     scores = item_scores(to_candidate(answers), rubric, llm)
     aggregated = aggregate(scores, rubric)
-    best = answers["directions"][0]
+    # Совет по направлению — по опыту, как это делает GigaChat; только из выбранных кандидатом.
+    by_experience = {"museum_practice": "Фондовое", "archaeology": "Фондовое", "disability": "Инклюзивное",
+                     "children": "Инклюзивное", "own_projects": "Проектное", "volunteering": "Организационное"}
+    suggested = [by_experience[code] for code in categories if by_experience[code] in answers["directions"]]
+    best = suggested[0] if suggested else answers["directions"][0]
     result = dict(scores=scores, factors=aggregated["factors"], index=aggregated["index"], grade=aggregated["grade"],
                   coverage=aggregated["coverage"], categories=categories, flags=[], vk_summary="", demo=True,
                   summary=f"{answers['course']}, {answers['faculty'].lower()}. {phrase}. "
