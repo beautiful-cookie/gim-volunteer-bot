@@ -150,28 +150,38 @@ def llm_choice(answers, provider, covered_topics, limit):
     return chosen
 
 
+def is_duplicate(question, existing):
+    """Вопрос уже задан: совпадают первые 30 символов без учёта регистра."""
+    start = question.lower()[:30]
+    return any(start == q.lower()[:30] for q in existing)
+
+
 def make_planner(provider=None):
     """Возвращает функцию plan(answers) → список вопросов для движка диалога."""
     def plan(answers):
+        # Уточнения GigaChat по ходу анкеты уже заданы: блок в конце становится короче и их не повторяет.
+        already = [question for question, _ in answers.get("followups", [])]
+        limit = max(2, MAX_QUESTIONS - len(already))
+        minimum = min(MIN_QUESTIONS, limit)
         questions = []          # список (тема, вопрос)
         topics = set()
 
         def add(items):
             for topic, text in items:
-                if len(questions) < MAX_QUESTIONS and topic not in topics:
+                if len(questions) < limit and topic not in topics and not is_duplicate(text, already):
                     questions.append((topic, text))
                     topics.add(topic)
 
         add(rule_questions(answers))
         closed_topics = topics | answered_topics(answers)
-        if provider is not None and len(questions) < MAX_QUESTIONS:
+        if provider is not None and len(questions) < limit:
             try:
-                add(llm_choice(answers, provider, closed_topics, MAX_QUESTIONS - len(questions)))
+                add(llm_choice(answers, provider, closed_topics, limit - len(questions)))
             except (LLMError, ValueError) as error:
                 print(f"Планировщик уточнений: LLM недоступна, только правила ({error})")
         # Если вопросов всё ещё мало, добираем общими вопросами, которые подходят любому кандидату.
         for number in FALLBACK_ORDER:
-            if len(questions) >= MIN_QUESTIONS:
+            if len(questions) >= minimum:
                 break
             if BANK[number][0] not in closed_topics:
                 add([BANK[number]])

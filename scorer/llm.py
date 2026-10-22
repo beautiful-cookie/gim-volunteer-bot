@@ -130,13 +130,17 @@ class Cached:
         return content
 
 
-def make_provider(name="auto"):
-    """gigachat | openrouter | auto (GigaChat с запасным OpenRouter — какие ключи заданы)."""
+def make_provider(name="auto", gigachat_model=None):
+    """gigachat | openrouter | auto (GigaChat с запасным OpenRouter — какие ключи заданы).
+
+    gigachat_model — другая модель GigaChat для этого провайдера, например быстрая для вопросов в диалоге.
+    """
     load_env()
     providers = []
     if name in ("gigachat", "auto") and os.environ.get("GIGACHAT_CREDENTIALS"):
         verify = os.environ.get("GIGACHAT_CA_BUNDLE") or os.environ.get("GIGACHAT_VERIFY_SSL", "true").lower() != "false"
-        providers.append(GigaChat(os.environ["GIGACHAT_CREDENTIALS"], os.environ.get("GIGACHAT_MODEL", "GigaChat-2-Max"),
+        model = gigachat_model or os.environ.get("GIGACHAT_MODEL", "GigaChat-2-Max")
+        providers.append(GigaChat(os.environ["GIGACHAT_CREDENTIALS"], model,
                                   os.environ.get("GIGACHAT_SCOPE", "GIGACHAT_API_PERS"), verify))
     if name in ("openrouter", "auto") and os.environ.get("OPENROUTER_API_KEY"):
         providers.append(OpenAICompatible("https://openrouter.ai/api/v1", os.environ["OPENROUTER_API_KEY"],

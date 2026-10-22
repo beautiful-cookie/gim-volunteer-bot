@@ -20,7 +20,7 @@ LLM (GigaChat) оценивает анкету по рубрике музея, �
 
 | Папка | Что внутри |
 |---|---|
-| `bot/` | Бот: `questionnaire.py` — вопросы анкеты, `engine.py` — диалоговый движок (не зависит от ВК), `followups.py` — уточняющие вопросы, `application.py` — оценка отправленной анкеты и карточка для кураторов, `storage.py` — SQLite, `vk_bot.py` — адаптер vkbottle |
+| `bot/` | Бот: `questionnaire.py` — вопросы анкеты, `engine.py` — диалоговый движок (не зависит от ВК), `inline_questions.py` — уточнение GigaChat сразу после открытого вопроса с проверкой правилами, `followups.py` — уточняющие вопросы в конце анкеты, `application.py` — оценка отправленной анкеты и карточка для кураторов, `storage.py` — SQLite, `vk_bot.py` — адаптер vkbottle |
 | `scorer/` | Оценка анкеты: `rules.py` — пункты по правилам, `extract.py` — LLM-пункты с проверкой цитат, `score.py` — факторы и индекс, `llm.py` — клиенты GigaChat и OpenRouter с кэшем |
 | `dashboard/` | Дашборд кураторов: `app.py` — интерфейс, `data.py` — загрузка и пересчёт по весам, `export.py` — Excel |
 | `config/` | `rubric.yaml` — рубрика и веса представителя (единственный источник правды о баллах), `model.json` — коэффициенты модели вероятности успеха |
@@ -41,6 +41,7 @@ cp .env.example .env        # и заполнить ключи
 python scripts/simulate_bot.py          # сценарий с проверками
 python scripts/simulate_bot.py --chat   # ручной диалог
 python scripts/selftest_scorer.py       # самотест скоринга
+python scripts/selftest_inline.py       # самотест уточнений GigaChat и их проверки
 ```
 
 Запуск:

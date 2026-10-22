@@ -46,7 +46,8 @@ class Question:
     exclusive: list = field(default_factory=list)  # в multi: варианты, которые нельзя сочетать с другими
     check: Optional[Callable[[str], Optional[str]]] = None  # вернёт текст ошибки или None
     ask_if: Optional[Callable[[dict], bool]] = None         # задавать ли вопрос при уже данных ответах
-    clarify: Optional[str] = None           # уточнение, если ответ получился слишком общим (один раз)
+    clarify: Optional[str] = None           # заготовленный переспрос, если ответ слишком общий (один раз)
+    llm_followup: bool = False              # после ответа GigaChat может задать своё уточнение
     label: str = ""                         # как пункт называется в сводке ответов
 
     def applies(self, answers):
@@ -160,18 +161,18 @@ QUESTIONS = [
              label="Научные интересы"),
     Question("experience", "Опыт и интересы",
              "Опыт работы, стажировки, участие в проектах. Если опыта пока нет — так и напишите.",
-             check=check_not_empty, label="Опыт"),
+             check=check_not_empty, llm_followup=True, label="Опыт"),
     Question("languages", "Опыт и интересы",
              "Какими иностранными языками вы владеете на уровне B1 и выше? Если никакими — напишите «нет».",
              check=check_not_empty, label="Языки"),
-    Question("hobby", "Опыт и интересы", "Ваши хобби:", check=check_not_empty, label="Хобби"),
+    Question("hobby", "Опыт и интересы", "Ваши хобби:", check=check_not_empty, llm_followup=True, label="Хобби"),
 
     Question("why_gim", "Мотивация", "Почему вы выбрали волонтёрскую программу Исторического музея?",
-             check=check_not_empty, label="Почему ГИМ",
+             check=check_not_empty, llm_followup=True, label="Почему ГИМ",
              clarify="Спасибо! Можете чуть конкретнее: что именно привлекает вас в Историческом музее — "
                      "выставки, тема, люди, формат работы?"),
     Question("expectations", "Мотивация", "Чего вы ожидаете от волонтёрства в Историческом музее?",
-             check=check_not_empty, label="Ожидания",
+             check=check_not_empty, llm_followup=True, label="Ожидания",
              clarify="Спасибо! А какой результат через полгода волонтёрства был бы для вас лучшим?"),
 
     Question("hours_month", "Время", "Сколько часов в месяц вы готовы уделять волонтёрству?", kind="choice",

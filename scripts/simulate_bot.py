@@ -7,6 +7,7 @@
 База симулятора — data/sim.sqlite3, рабочая база бота не трогается.
 """
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -16,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from bot.application import curator_card, score_application  # noqa: E402
 from bot.engine import MAX_BUTTONS, Dialog  # noqa: E402
 from bot.followups import make_planner  # noqa: E402
+from bot.inline_questions import make_inline_asker  # noqa: E402
 from bot.storage import Storage  # noqa: E402
 from scorer.llm import make_provider  # noqa: E402
 
@@ -25,8 +27,10 @@ USER = 1001
 class Chat:
     """Обёртка над движком: шлёт сообщения и нажатия, печатает ответы, проверяет клавиатуры."""
 
-    def __init__(self, dialog, quiet=False):
-        self.dialog, self.quiet, self.last = dialog, quiet, []
+    def __init__(self, dialog, quiet=False, auto_inline=False):
+        """auto_inline — сам отвечать на уточнения GigaChat: они появляются там, где решит модель."""
+        self.dialog, self.quiet, self.auto_inline, self.last = dialog, quiet, auto_inline, []
+        self.inline_seen = []
 
     def send(self, text="", payload=None):
         if not self.quiet:
@@ -40,6 +44,10 @@ class Chat:
                 print(reply.text)
                 if buttons:
                     print("   [" + "] [".join(b.label for b in buttons) + "]")
+        state = self.dialog.storage.load_state(USER)
+        if self.auto_inline and state["step"].startswith("inline:"):
+            self.inline_seen.append((state["step"][7:], self.last[0].text))
+            return self.send("Да, расскажу подробнее: занималась этим около года, могу показать примеры.")
         return self.last
 
     def press(self, label):
@@ -56,7 +64,7 @@ class Chat:
 
 
 def scripted(dialog, storage, provider):
-    chat = Chat(dialog)
+    chat = Chat(dialog, auto_inline=dialog.ask_inline is not None)
     chat.send("Привет")
     assert chat.says("бот волонтёрской программы")
     chat.press("Начать анкету")
@@ -96,8 +104,10 @@ def scripted(dialog, storage, provider):
     chat.send("Английский B2")
     chat.send("Фотография, исторические реконструкции")
     chat.send("Люблю историю")                             # общий ответ — бот переспросит один раз
-    assert chat.says("конкретнее")
-    chat.send("Регулярно хожу на выставки ГИМ, особенно понравилась выставка о Смутном времени")
+    if not chat.auto_inline:                               # без LLM — заготовленный переспрос
+        assert chat.says("конкретнее")
+    if chat.says("конкретнее"):                            # с LLM переспросит GigaChat (ответ уже дан выше)
+        chat.send("Регулярно хожу на выставки ГИМ, особенно понравилась выставка о Смутном времени")
     chat.send("Хочу понять, как устроена работа с фондами и подготовка выставки, и поработать в одном из "
               "старейших музеев страны")
     chat.press("20–30")
@@ -121,7 +131,7 @@ def scripted(dialog, storage, provider):
             chat.press("Пропустить")
         else:
             chat.send("Да, есть опыт: вела экскурсии для школьников на практике, снимаю на Sony a7")
-    assert answered >= 3, answered
+    assert answered >= (2 if chat.inline_seen else 3), answered   # после уточнений GigaChat блок короче
     assert chat.says("Проверьте, пожалуйста, ответы")
 
     chat.press("Исправить ответ")
@@ -138,10 +148,14 @@ def scripted(dialog, storage, provider):
     app_id, user_id, answers = applications[0]
     assert answers["city"] == "Московская область" and answers["commute"] == "До 1 часа"
     assert answers["directions"] == ["Проектное", "Фондовое"]
-    assert answers["why_gim"].startswith("Люблю историю. Регулярно")
+    assert answers["why_gim"].startswith("Люблю историю")
     assert answers["experience"].startswith("Практика в Музее Москвы")
     questions = [q for q, _ in answers["followups"]]
     assert len(questions) == len(set(questions)), "повторяющиеся уточняющие вопросы"
+    if chat.inline_seen:
+        print("\n================ Уточнения GigaChat по ходу анкеты ================")
+        for key, question in chat.inline_seen:
+            print(f"после «{key}»: {question}")
 
     result = score_application(answers, provider)
     storage.save_result(app_id, result)
@@ -179,7 +193,11 @@ def main():
         Path(str(db) + suffix).unlink(missing_ok=True)
     storage = Storage(db)
     provider = make_provider("auto") if a.llm else None
-    dialog = Dialog(storage, make_planner(provider))
+    inline = None
+    if a.llm:
+        fast = make_provider("auto", gigachat_model=os.environ.get("GIGACHAT_FAST_MODEL", "GigaChat-2"))
+        inline = make_inline_asker(fast)
+    dialog = Dialog(storage, make_planner(provider), inline)
     if a.chat:
         manual(dialog)
     else:

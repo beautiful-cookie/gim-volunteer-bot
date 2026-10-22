@@ -30,6 +30,7 @@ from vkbottle.bot import Bot, Message  # noqa: E402
 from bot.application import curator_card, score_application  # noqa: E402
 from bot.engine import Dialog  # noqa: E402
 from bot.followups import make_planner  # noqa: E402
+from bot.inline_questions import make_inline_asker  # noqa: E402
 from bot.storage import Storage  # noqa: E402
 from scorer.llm import LLMError, load_env, make_provider  # noqa: E402
 
@@ -64,17 +65,24 @@ def main():
 
     try:
         provider = make_provider("auto")
+        # Для уточнений прямо в диалоге берём быструю модель: кандидат ждёт ответа в чате.
+        fast_provider = make_provider("auto", gigachat_model=os.environ.get("GIGACHAT_FAST_MODEL", "GigaChat-2"))
     except LLMError as error:
         print(f"LLM не подключена ({error}) — бот работает на правилах.")
-        provider = None
+        provider = fast_provider = None
 
     storage = Storage(ROOT / "data" / "bot.sqlite3")
-    dialog = Dialog(storage, make_planner(provider))
+    dialog = Dialog(storage, make_planner(provider), make_inline_asker(fast_provider))
     bot = Bot(token=token)
 
     @bot.on.private_message()
     async def on_message(message: Message):
         payload = message.get_payload_json() or {}
+        # Пока GigaChat думает над уточнением, кандидат видит «печатает…».
+        try:
+            await bot.api.messages.set_activity(peer_id=message.peer_id, type="typing")
+        except Exception:
+            pass
         # Движок может ждать ответа LLM (уточняющие вопросы), поэтому вызываем его в отдельном потоке.
         replies = await asyncio.to_thread(dialog.handle, message.from_id, message.text, payload)
         for reply in replies:
