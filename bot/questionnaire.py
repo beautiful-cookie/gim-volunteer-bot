@@ -70,7 +70,7 @@ def check_fio(text):
 
 def check_email(text):
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-zА-Яа-я]{2,}", text.strip()):
-        return "Похоже, в адресе ошибка. Пример: ivanova@mail.ru"
+        return "Похоже, в адресе ошибка. Пример: ivanova@example.ru"
     return None
 
 

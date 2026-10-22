@@ -75,9 +75,9 @@ def scripted(dialog, storage, provider):
     chat.send("Мяу мяу мяу")                               # повтор слов — не ФИО
     assert chat.says("это не ФИО")
     chat.send("Иванова Мария Сергеевна")
-    chat.send("ivanova@mail")                              # ошибка в адресе
+    chat.send("ivanova@example")                            # ошибка в адресе
     assert chat.says("ошибка")
-    chat.send("ivanova@mail.ru")
+    chat.send("ivanova@example.ru")
     chat.send("05.03.2004")
     chat.press("Московская область")
     assert chat.says("дорога")

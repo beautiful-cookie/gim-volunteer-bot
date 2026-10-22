@@ -1,0 +1,5 @@
+# Дашборд по HTTPS. Адрес берётся из DASHBOARD_DOMAIN в .env (например, volunteers.shm.ru),
+# сертификат Caddy получает и продлевает сам. Домен должен указывать на IP сервера.
+{$DASHBOARD_DOMAIN} {
+	reverse_proxy dashboard:8501
+}

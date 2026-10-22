@@ -40,6 +40,9 @@
   текст разбирается по частям, куратору — пометка «проверьте опыт вручную».
 - Windows: сертификат api.vk.ru (HARICA) не в системном хранилище — `SSL_CERT_FILE=certifi.where()` до импорта vkbottle.
 - Без пакета `loguru` vkbottle падает при логировании ошибок и прячет настоящее исключение.
+- Docker: из кириллического пути («Хакатон») BuildKit не собирает образ (non-printable ASCII в заголовке сессии),
+  а compose не может вывести имя проекта — поэтому `name:` в docker-compose.yml, а музею — путь латиницей.
+  Проверять сборку — на копии проекта в латинском пути.
 
 ## Где что
 
@@ -52,4 +55,4 @@
 - Самообучение модели — `bot/retrain.py`: версии в таблице `model_versions`, действующая — последняя принятая,
   без версий — `config/model.json`. Признаки бота для модели — `bot.application.model_features`.
 - Конфигурация запуска дашборда для превью — `.claude/launch.json` («dashboard», порт 8501;
-  «dashboard-demo», порт 8502 — на демобазе `data/selftest_survey.sqlite3`).
+  «dashboard-demo», порт 8502 — на демобазе `data/demo.sqlite3` из `scripts/make_demo.py`).
