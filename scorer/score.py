@@ -25,8 +25,11 @@ def item_scores(c, rubric, llm=None):
         if item["method"] == "rule":
             out[iid] = rules.RULES[iid](c, item)
         elif iid == "experience":
-            out[iid] = (rules.experience_from_categories(llm["categories"], item, llm["has_any_experience"])
-                        if llm and llm.get("ok") else None)
+            # Опыт не разобран (LLM не ответила на шаге классификации) — пункт пропускаем, а не ставим 0.
+            if llm and llm.get("ok") and llm.get("experience_ok", True):
+                out[iid] = rules.experience_from_categories(llm["categories"], item, llm["has_any_experience"])
+            else:
+                out[iid] = None
         elif iid == "direction_fit":
             gate = rules.direction_gate(c)
             out[iid] = gate if gate is not None else (llm["scores"].get(iid) if llm and llm.get("ok") else None)

@@ -41,20 +41,69 @@ def answer(form_quality, expectations_quote, museum=True):
 
 
 class FakeProvider:
+    """Отвечает по виду запроса: общий запрос оценки, «выпиши опыт» или «определи категории»."""
     name, model = "fake", "fake-1"
 
-    def __init__(self, replies):
+    def __init__(self, replies, episodes=None, labels=None):
         self.replies, self.calls = list(replies), 0
+        self.episodes = episodes if episodes is not None else {"episodes": []}
+        self.labels = list(labels or [])
 
     def chat(self, messages, temperature, run=0):
         self.calls += 1
+        prompt = messages[-1]["content"]
+        if prompt.startswith("Выпиши из ответов"):
+            return json.dumps(self.episodes, ensure_ascii=False)
+        if prompt.startswith("Определи категории"):
+            return json.dumps(self.labels.pop(0), ensure_ascii=False)
         return self.replies.pop(0)
+
+
+def single_prompt_rubric():
+    rubric = load_rubric()
+    for item in rubric["items"]:
+        if item["id"] == "experience":
+            item["classifier"] = "single_prompt"
+    return rubric
+
+
+def check_two_step():
+    """Новый способ: эпизоды с проверкой цитат, категории большинством, ключевые слова — только пометка."""
+    rubric = load_rubric()
+    episodes = {"episodes": [
+        {"what": "музейная практика", "where": "Музей истории ГУЛАГа", "role": "практикант",
+         "quote": "Музейная практика в Музее истории ГУЛАГа"},
+        {"what": "работа хранителем", "where": "Эрмитаж", "role": "хранитель", "quote": "работала хранителем в Эрмитаже"},
+    ]}
+    labels = [{"labels": [{"episode": 1, "categories": ["museum_practice", "children"]}]},
+              {"labels": [{"episode": 1, "categories": ["museum_practice"]}]},
+              {"labels": [{"episode": 1, "categories": ["museum_practice", "own_projects"]}]}]
+    p = FakeProvider([answer(3, "")] * 3, episodes, labels)
+    r = assess(CANDIDATE, rubric, p, runs=3)
+    assert p.calls == 3 + 1 + 3, p.calls                          # общий запрос ×3, выписать ×1, категории ×3
+    assert set(r["categories"]) == {"museum_practice"}, r["categories"]   # дети и проекты — по 1 голосу из 3
+    assert any("без настоящей цитаты: 1" in f for f in r["flags"]), r["flags"]   # выдуманный Эрмитаж отброшен
+    assert item_scores(CANDIDATE, rubric, r)["experience"] == 3
+
+    # Модель отнесла эпизод к категории без характерных слов — категорию оставляем, но помечаем для куратора.
+    p = FakeProvider([answer(3, "")] * 3, {"episodes": [episodes["episodes"][0]]},
+                     [{"labels": [{"episode": 1, "categories": ["children"]}]}] * 3)
+    r = assess(CANDIDATE, rubric, p, runs=3)
+    assert "children" in r["categories"] and any("проверьте" in f for f in r["flags"]), r
+
+    # Опыта нет вообще — шаг классификации не вызывается, балл опыта 0.
+    p = FakeProvider([answer(3, "")] * 3, {"episodes": []})
+    r = assess(dict(CANDIDATE, experience="", hobby="", superpower=""), rubric, p, runs=3)
+    assert p.calls == 3 and r["has_any_experience"] is False
 
 
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    rubric = load_rubric()
+    check_two_step()
+
+    # Дальше — прежний способ (категории в общем запросе): разбор JSON, медианы, цитаты, флаги.
+    rubric = single_prompt_rubric()
     prompt = build_prompt(CANDIDATE, rubric)[1]["content"]
     assert "(вопрос не задавался)" in prompt and "<анкета>" in prompt
 

@@ -10,7 +10,9 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
+from .experience import classify_experience
 from .llm import LLMError
+from .quotes import normalize as _norm, quote_found  # noqa: F401  (quote_found нужен и другим модулям)
 
 SYSTEM = """Ты — эксперт по отбору волонтёров Государственного исторического музея (ГИМ, Москва).
 Ты оцениваешь анкету кандидата по рубрике музея.
@@ -39,10 +41,15 @@ def _anchors(item):
     return "\n".join(lines)
 
 
+def uses_single_prompt(rubric):
+    """Прежний способ: категории опыта ищутся в общем запросе. По умолчанию — два шага (scorer/experience.py)."""
+    exp = next(i for i in rubric["items"] if i["id"] == "experience")
+    return exp.get("classifier", "two_step") == "single_prompt"
+
+
 def build_prompt(c, rubric):
     items = {i["id"]: i for i in rubric["items"]}
-    exp = items["experience"]
-    cats = "\n".join(f"  {k}: {v}" for k, v in exp["categories"].items())
+    single = uses_single_prompt(rubric)
     parts = [
         "О ПРОГРАММЕ\n" + rubric.get("program_description", "").strip() + "\n",
         "РУБРИКА (каждый пункт — от 0 до 3)",
@@ -50,27 +57,35 @@ def build_prompt(c, rubric):
         f"\nexpectations — «{items['expectations']['question']}»\n{_anchors(items['expectations'])}",
         f"\ndirection_fit — соответствие выбранных направлений опыту и интересам кандидата\n{_anchors(items['direction_fit'])}",
         f"\nform_quality — качество анкеты целиком\n{_anchors(items['form_quality'])}",
-        "\nexperience — найди подтверждения категорий опыта в полях «Опыт работы…», «Хобби», «Суперсила» "
-        "и в ответах на уточняющие вопросы.\n"
-        "Опыт — только то, что кандидат уже делал сам: работа, практика, стажировка, волонтёрство, участие. "
-        "Научные интересы, учёба на факультете, планы и желания опытом не считаются.\n"
-        "Для каждой найденной категории дай дословную цитату. Ненайденные категории не включай.\n"
-        "has_any_experience = true, если упомянута любая работа, стажировка, практика, проект, конкурс, "
-        "олимпиада или студенческое общество, даже вне списка категорий.\n" + cats,
-        "\n<анкета>\n" + render_candidate(c) + "\n</анкета>",
-        "\nВерни JSON такой формы:\n" + json.dumps({
-            "why_gim": {"score": "0–3 или null", "evidence": "цитата", "reason": "одна фраза"},
-            "expectations": {"score": "0–3", "evidence": "цитата", "reason": "одна фраза"},
-            "direction_fit": {"score": "0–3", "evidence": "цитата", "reason": "одна фраза"},
-            "form_quality": {"score": "0–3", "evidence": "", "reason": "одна фраза"},
-            "experience": {"categories": {"<код категории>": "цитата"}, "has_any_experience": "true/false",
-                           "reason": "одна фраза"},
-            "summary": "3–4 предложения о кандидате для куратора: кто он, сильные стороны, риски",
-            "recommended_direction": "одно из выбранных кандидатом направлений, которое лучше всего подкреплено анкетой",
-            "interview_questions": ["3–5 вопросов для очного собеседования, нацеленных на пробелы и риски анкеты"],
-            "red_flags": ["серьёзные проблемы, если есть; иначе пустой список"],
-        }, ensure_ascii=False, indent=1),
     ]
+    if single:
+        cats = "\n".join(f"  {k}: {v}" for k, v in items["experience"]["categories"].items())
+        parts.append(
+            "\nexperience — найди подтверждения категорий опыта в полях «Опыт работы…», «Хобби», «Суперсила» "
+            "и в ответах на уточняющие вопросы.\n"
+            "Опыт — только то, что кандидат уже делал сам: работа, практика, стажировка, волонтёрство, участие. "
+            "Научные интересы, учёба на факультете, планы и желания опытом не считаются.\n"
+            "Для каждой найденной категории дай дословную цитату. Ненайденные категории не включай.\n"
+            "has_any_experience = true, если упомянута любая работа, стажировка, практика, проект, конкурс, "
+            "олимпиада или студенческое общество, даже вне списка категорий.\n" + cats)
+    parts.append("\n<анкета>\n" + render_candidate(c) + "\n</анкета>")
+
+    schema = {
+        "why_gim": {"score": "0–3 или null", "evidence": "цитата", "reason": "одна фраза"},
+        "expectations": {"score": "0–3", "evidence": "цитата", "reason": "одна фраза"},
+        "direction_fit": {"score": "0–3", "evidence": "цитата", "reason": "одна фраза"},
+        "form_quality": {"score": "0–3", "evidence": "", "reason": "одна фраза"},
+    }
+    if single:
+        schema["experience"] = {"categories": {"<код категории>": "цитата"}, "has_any_experience": "true/false",
+                                "reason": "одна фраза"}
+    schema.update({
+        "summary": "3–4 предложения о кандидате для куратора: кто он, сильные стороны, риски",
+        "recommended_direction": "одно из выбранных кандидатом направлений, которое лучше всего подкреплено анкетой",
+        "interview_questions": ["3–5 вопросов для очного собеседования, нацеленных на пробелы и риски анкеты"],
+        "red_flags": ["серьёзные проблемы, если есть; иначе пустой список"],
+    })
+    parts.append("\nВерни JSON такой формы:\n" + json.dumps(schema, ensure_ascii=False, indent=1))
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": "\n".join(parts)}]
 
 
@@ -134,7 +149,7 @@ class Assessment(BaseModel):
     expectations: Scored
     direction_fit: Optional[Scored] = None
     form_quality: Scored
-    experience: Experience
+    experience: Experience = Field(default_factory=Experience)   # только в прежнем способе (single_prompt)
     summary: str
     recommended_direction: str = ""
     interview_questions: list[str] = Field(default_factory=list)
@@ -144,33 +159,6 @@ class Assessment(BaseModel):
 LLM_ITEMS = ["why_gim", "expectations", "direction_fit", "form_quality"]
 INJECTION = re.compile(r"игнорир|ignore (all|previous)|поставь(те)? (мне )?(3|высш|максим)|оцени(те)? меня|system prompt|"
                        r"выстав\w* (мне )?(балл|оценк)", re.I)
-
-
-def _norm(s):
-    s = s.lower().replace("ё", "е")
-    s = re.sub(r"[«»\"'“”„()\[\].,;:!?—–-]", " ", s)
-    return re.sub(r"\s+", " ", s).strip()
-
-
-def quote_found(quote, text):
-    """Цитата считается найденной, если каждый её кусок (куски разделены «...») есть в анкете.
-
-    Модель иногда слегка меняет слова: «участвовал в хакатонах» вместо «участвовал в хакатоне».
-    Поэтому кусок засчитывается и тогда, когда 80 % его слов встречаются в анкете
-    (слова сравниваем по первым 5 буквам, чтобы окончания не мешали).
-    """
-    pieces = [p for p in (_norm(x) for x in re.split(r"\.\.\.|…", quote)) if p]
-    if not pieces:
-        return False
-    text_stems = {word[:5] for word in text.split()}
-    for piece in pieces:
-        if piece in text:
-            continue
-        words = piece.split()
-        found = sum(1 for word in words if word[:5] in text_stems)
-        if found < 0.8 * len(words):
-            return False
-    return True
 
 
 def parse(content):
@@ -267,6 +255,16 @@ def assess(c, rubric, provider, runs=3, temperature=0.3):
         flags.append("цитата не подходит к категории опыта: " + ", ".join(sorted(off_category)))
     need = len(results) / 2
     categories = {k: cat_quotes[k] for k, n in cat_votes.items() if n > need}
+    has_any_experience = sum(has_any) > need
+    experience_ok, episodes = True, []
+    if not uses_single_prompt(rubric):
+        # Новый способ: опыт разбирается отдельно, в два шага (scorer/experience.py).
+        exp = classify_experience(c, provider, rubric, runs)
+        flags.extend(exp["notes"])
+        experience_ok = exp["ok"]
+        categories = exp.get("categories", {})
+        has_any_experience = exp.get("has_any_experience", False)
+        episodes = exp.get("episodes", [])
 
     # Тексты берём из прогона, чьи оценки ближе всего к итоговым.
     def dist(a):
@@ -274,7 +272,8 @@ def assess(c, rubric, provider, runs=3, temperature=0.3):
                    for k in LLM_ITEMS)
     best = min(results, key=dist)
     return dict(ok=True, n_runs=len(results), scores=scores, evidence=evidence, categories=categories,
-                has_any_experience=sum(has_any) > need, summary=best.summary.strip(),
+                has_any_experience=has_any_experience, experience_ok=experience_ok, experience_episodes=episodes,
+                summary=best.summary.strip(),
                 recommended_direction=best.recommended_direction.strip(),
                 interview_questions=[q.strip() for q in best.interview_questions if q.strip()][:5],
                 red_flags=best.red_flags, flags=flags)
