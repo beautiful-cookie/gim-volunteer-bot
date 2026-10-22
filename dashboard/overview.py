@@ -45,7 +45,7 @@ def stat_cards(df, free_places):
     strong = int((df["grade"] == 3).sum())
     flags = Counter(f for fs in df["flags"] for f in fs)
     flagged = int(df["flags"].apply(bool).sum())
-    invited = int((df["decision"] == "Пригласить").sum())
+    invited = int(df["decision"].isin(["Пригласить", "Взят в команду"]).sum())
     decided = int((df["decision"] != "не решено").sum())
     strong_from = grade_thresholds()[2]
 

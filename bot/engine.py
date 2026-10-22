@@ -12,26 +12,14 @@
     picked     — отмеченные варианты в вопросе с несколькими ответами
     inline     — уточнения GigaChat сразу после открытых вопросов: [{key, question, answer}]
     followups  — уточняющие вопросы в конце анкеты и ответы на них
+    survey     — опрос через четыре месяца, если он сейчас идёт (bot/survey.py)
 """
-from dataclasses import dataclass, field
-
+from . import survey as checkin
 from .questionnaire import INTRO, PRIVACY_URL, QUESTION_BY_KEY, QUESTIONS, SECTIONS, is_vague, too_young
+from .replies import Button, Reply
 
 MAX_BUTTONS = 10  # ограничение ВК для inline-клавиатуры
 MAX_INLINE = 3    # не больше трёх уточнений GigaChat по ходу анкеты, чтобы не утомлять кандидата
-
-
-@dataclass
-class Button:
-    label: str
-    payload: dict
-    color: str = "secondary"   # primary, secondary, positive, negative
-
-
-@dataclass
-class Reply:
-    text: str
-    buttons: list = field(default_factory=list)   # список рядов, ряд — список кнопок
 
 
 BACK = Button("← Назад", {"cmd": "back"})
@@ -77,6 +65,9 @@ class Dialog:
         if state is None or wants_restart:
             state = new_state()
             replies = self.show_intro()
+        elif state.get("survey"):
+            # Волонтёр отвечает на опрос через четыре месяца — анкета давно отправлена, все сообщения про опрос.
+            replies = checkin.handle(self.storage, state, text, payload)
         elif command == "start":
             replies = self.repeat_current(state) or self.show_intro()
         elif command == "later":
@@ -122,6 +113,29 @@ class Dialog:
             return [Reply("Ваша анкета уже отправлена — спасибо! Куратор свяжется с вами после рассмотрения.")]
         return [Reply("Спасибо за интерес к программе! Если захотите начать заново, напишите «Начать заново».")]
 
+    # ------------------------------------------------------------ опрос через четыре месяца
+
+    def start_survey(self, user_id, survey_id, application_answers):
+        """Бот сам пишет волонтёру первым: возвращает приглашение к опросу (его отправляет bot/vk_bot.py)."""
+        state = self.storage.load_state(user_id) or dict(new_state(), step="done")
+        reply = checkin.start(state, survey_id, application_answers)
+        state["user_id"] = user_id
+        self.storage.save_state(user_id, state)
+        return reply
+
+    def survey_reminder(self, user_id):
+        """Напоминание об опросе с того места, где волонтёр остановился, или None, если опрос уже закрыт."""
+        state = self.storage.load_state(user_id)
+        if not state or not state.get("survey"):
+            return None
+        return checkin.current_message(state, reminder=True)
+
+    def close_survey(self, user_id):
+        """Опрос истёк без ответа — убираем его из диалога, дальше бот отвечает как обычно."""
+        state = self.storage.load_state(user_id)
+        if state and state.pop("survey", None):
+            self.storage.save_state(user_id, state)
+
     # ------------------------------------------------------------ знакомство и согласие
 
     def show_intro(self):
@@ -133,7 +147,10 @@ class Dialog:
         text = ("Для участия нужно согласие на обработку персональных данных. "
                 f"Политика конфиденциальности музея: {PRIVACY_URL}\n\n"
                 "Мы также посмотрим открытые данные вашей страницы ВКонтакте: город, подписки на музейные "
-                "сообщества и общих друзей с волонтёрами программы.")
+                "сообщества и общих друзей с волонтёрами программы.\n\n"
+                "Если вас возьмут в команду, примерно через четыре месяца бот пришлёт короткий опрос: "
+                "довольны ли вы волонтёрством. Ответы видят только кураторы, они помогают улучшать программу "
+                "и отбор. Отвечать или нет — решаете вы.")
         return Reply(text, [[Button("Даю согласие", {"answer": "yes"}, "positive"),
                              Button("Не согласен(на)", {"answer": "no"}, "negative")]])
 
