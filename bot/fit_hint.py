@@ -121,7 +121,8 @@ def make_fit_hint(provider):
                 reply = json.loads(match.group()) if match else {}
                 problem = check_hint(reply, chosen, text, rubric)
                 if problem:
-                    print(f"Подсказка по направлению отклонена ({problem}): {reply}")
+                    # В лог — без текста ответа модели: в нём пересказ анкеты кандидата.
+                    print(f"Подсказка по направлению отклонена ({problem}), направление модели: {reply.get('direction')}")
                 else:
                     why = reply["why"].strip()
                     why = why[0].lower() + why[1:]   # после двоеточия — со строчной

@@ -104,7 +104,8 @@ def make_inline_asker(provider):
         all_text = " ".join(str(v) for v in answers.values() if isinstance(v, str))
         problem = check_question(question, quote, answer, all_text, rubric)
         if problem:
-            print(f"Уточнение к «{key}» отклонено ({problem}): {question} | цитата модели: «{quote}»")
+            # В лог — только причина и вопрос модели, без цитаты: в ней слова кандидата (персональные данные).
+            print(f"Уточнение к «{key}» отклонено ({problem}): {question}")
             return None
         return question
 
