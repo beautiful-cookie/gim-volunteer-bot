@@ -8,8 +8,9 @@ import streamlit as st
 OVERVIEW = "Обзор"
 CANDIDATES = "Все кандидаты"
 CANDIDATE = "Кандидат"
+TEAM = "Сборка команды"   # распределение по направлениям с учётом мест (dashboard/team.py)
 VOLUNTEERS = "Волонтёры"   # опрос через четыре месяца и дообучение модели (dashboard/volunteers.py)
-VIEWS = [OVERVIEW, CANDIDATES, CANDIDATE, VOLUNTEERS]
+VIEWS = [OVERVIEW, CANDIDATES, CANDIDATE, TEAM, VOLUNTEERS]
 
 
 def go(view, **values):
