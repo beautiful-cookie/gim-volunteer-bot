@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from bot.application import curator_card, score_application  # noqa: E402
 from bot.engine import MAX_BUTTONS, Dialog  # noqa: E402
 from bot.followups import make_planner  # noqa: E402
+from bot.fit_hint import make_fit_hint  # noqa: E402
 from bot.inline_questions import make_inline_asker  # noqa: E402
 from bot.storage import Storage  # noqa: E402
 from scorer.llm import make_provider  # noqa: E402
@@ -142,6 +143,9 @@ def scripted(dialog, storage, provider):
     assert chat.says("Проверьте, пожалуйста, ответы")
     chat.press("Всё верно, отправить")
     assert chat.says("Анкета отправлена")
+    assert chat.says("может подойти направление «"), "нет подсказки по направлению"
+    assert chat.says("В фондовом направлении мест немного")   # выбрано «Фондовое» — честное замечание
+    assert chat.says("решение о приглашении принимает куратор")
 
     applications = storage.new_applications()
     assert len(applications) == 1
@@ -193,11 +197,11 @@ def main():
         Path(str(db) + suffix).unlink(missing_ok=True)
     storage = Storage(db)
     provider = make_provider("auto") if a.llm else None
-    inline = None
+    inline, fast = None, None
     if a.llm:
         fast = make_provider("auto", gigachat_model=os.environ.get("GIGACHAT_FAST_MODEL", "GigaChat-2"))
         inline = make_inline_asker(fast)
-    dialog = Dialog(storage, make_planner(provider), inline)
+    dialog = Dialog(storage, make_planner(provider), inline, make_fit_hint(fast))
     if a.chat:
         manual(dialog)
     else:

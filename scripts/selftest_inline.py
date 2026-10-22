@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from bot.engine import Dialog  # noqa: E402
+from bot.fit_hint import make_fit_hint  # noqa: E402
 from bot.followups import make_planner  # noqa: E402
 from bot.inline_questions import make_inline_asker  # noqa: E402
 from bot.storage import Storage  # noqa: E402
@@ -89,11 +90,34 @@ def check_dialog():
     assert state["step"] == "q:languages", state["step"]
 
 
+def check_fit_hint():
+    """Подсказка «насколько программа подходит»: проверка ответа модели и запасной вариант без LLM."""
+    answers = {"experience": ANSWER, "hobby": "фотография", "directions": ["Медиа", "Фондовое"],
+               "city": "Московская область", "commute": "1–2 часа", "followups": []}
+    good = {"direction": "Медиа", "why": "вы ведёте фотокружок и умеете снимать.", "quote": "вела фотокружок"}
+
+    def hint(reply):
+        return make_fit_hint(FakeProvider([reply]))(answers)
+
+    text = hint(good)
+    assert "направление «Медиа»: вы ведёте фотокружок" in text, text
+    assert "В фондовом направлении мест немного" in text and "заложите время на дорогу" in text
+    assert "решение о приглашении принимает куратор" in text
+    # Обещание приёма, чужое направление, нет цитаты — модельный ответ отбрасывается, работает правило.
+    for bad in ({**good, "why": "вас точно возьмут в медиа."}, {**good, "direction": "Инклюзивное"},
+                {**good, "quote": "снимаю кино в Голливуде"}):
+        text = hint(bad)
+        assert "вы ведёте фотокружок" not in text and "направление «Медиа»: у вас есть опыт" in text, text
+    assert "направление «" in make_fit_hint(None)(answers)                      # без LLM — правило
+    assert make_fit_hint(None)({"directions": []}) == ""                       # нечего сказать — пусто
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     check_guard()
     check_dialog()
+    check_fit_hint()
     print("Самотест уточнений пройден.")
 
 

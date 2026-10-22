@@ -49,14 +49,16 @@ def new_state():
 
 
 class Dialog:
-    def __init__(self, storage, plan_followups, ask_inline=None):
+    def __init__(self, storage, plan_followups, ask_inline=None, fit_hint=None):
         """storage — bot.storage.Storage;
         plan_followups(answers) → список уточняющих вопросов для конца анкеты;
-        ask_inline(key, question, answer, answers, asked) → уточнение GigaChat или None (bot.inline_questions).
+        ask_inline(key, question, answer, answers, asked) → уточнение GigaChat или None (bot.inline_questions);
+        fit_hint(answers) → подсказка кандидату после отправки анкеты (bot.fit_hint).
         """
         self.storage = storage
         self.plan_followups = plan_followups
         self.ask_inline = ask_inline
+        self.fit_hint = fit_hint
 
     # ------------------------------------------------------------ вход
 
@@ -361,10 +363,18 @@ class Dialog:
 
     def on_summary(self, state, payload):
         if payload.get("cmd") == "submit":
-            self.storage.add_application(state["user_id"], public_answers(state))
+            answers = public_answers(state)
+            # Подсказка «насколько программа вам подходит» — сохраняем и её, чтобы куратор видел, что сказал бот.
+            hint = self.fit_hint(answers) if self.fit_hint else ""
+            if hint:
+                answers["fit_hint"] = hint
+            self.storage.add_application(state["user_id"], answers)
             state["step"] = "done"
-            return [Reply("Спасибо! Анкета отправлена. Куратор программы рассмотрит её и свяжется с вами "
-                          "во ВКонтакте. Обычно это занимает до двух недель.")]
+            replies = [Reply("Спасибо! Анкета отправлена. Куратор программы рассмотрит её и свяжется с вами "
+                             "во ВКонтакте. Обычно это занимает до двух недель.")]
+            if hint:
+                replies.append(Reply(hint))
+            return replies
         if payload.get("cmd") == "edit":
             state["step"] = "edit"
             return [Reply("Напишите номер пункта, который хотите исправить.")]

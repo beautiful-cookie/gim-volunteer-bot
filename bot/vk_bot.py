@@ -30,6 +30,7 @@ from vkbottle.bot import Bot, Message  # noqa: E402
 from bot.application import curator_card, score_application  # noqa: E402
 from bot.engine import Dialog  # noqa: E402
 from bot.followups import make_planner  # noqa: E402
+from bot.fit_hint import make_fit_hint  # noqa: E402
 from bot.inline_questions import make_inline_asker  # noqa: E402
 from bot.vk_profile import analyze_profile  # noqa: E402
 from scorer.score import load_rubric  # noqa: E402
@@ -74,7 +75,7 @@ def main():
         provider = fast_provider = None
 
     storage = Storage(ROOT / "data" / "bot.sqlite3")
-    dialog = Dialog(storage, make_planner(provider), make_inline_asker(fast_provider))
+    dialog = Dialog(storage, make_planner(provider), make_inline_asker(fast_provider), make_fit_hint(fast_provider))
     bot = Bot(token=token)
 
     @bot.on.private_message()
