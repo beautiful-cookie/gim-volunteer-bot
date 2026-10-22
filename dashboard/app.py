@@ -30,6 +30,10 @@ from scorer.llm import load_env  # noqa: E402
 BOT_SOURCE = "Текущий набор"
 HISTORY_SOURCE = "Наборы 2024–2025"
 
+# Факторы, которые куратору не показываем ни в одном наборе (решение команды).
+# В балл анкеты они по-прежнему входят с весами из config/rubric.yaml.
+HIDDEN_FACTORS = {"direction_fit"}   # «Подходит направлению»
+
 st.set_page_config(page_title="Отбор волонтёров ГИМ", page_icon="🏛", layout="wide")
 theme.apply_css()
 
@@ -95,12 +99,13 @@ with st.sidebar:
 
     raw = load(source)
     shown_factors = factors_with_data(raw, factors) if not raw.empty else factors
+    shown_factors = {f: title for f, title in shown_factors.items() if f not in HIDDEN_FACTORS}
 
     st.markdown("**Важность факторов**")
     st.caption("1 — слабое влияние на балл, 5 — сильное.")
     for factor, value in factor_defaults().items():
         st.session_state.setdefault(f"importance_{factor}", value)
-    # Скрытый фактор (без данных) остаётся с важностью по рубрике.
+    # Скрытый фактор (без данных или из HIDDEN_FACTORS) остаётся с важностью по рубрике.
     importance = dict(factor_defaults())
     for factor in shown_factors:
         importance[factor] = st.slider(theme.FACTOR_SHORT.get(factor, factors[factor]), 1, 5,
