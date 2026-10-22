@@ -5,7 +5,7 @@
 пункты, которые обычно оценивает GigaChat, здесь заданы вымышленным «уровнем» кандидата — без вызовов LLM.
 
     python scripts/make_demo.py                     # создаёт data/demo.sqlite3 (старая перезаписывается)
-    GIM_BOT_DB=data/demo.sqlite3 GIM_DEMO=1 streamlit run dashboard/app.py
+    GIM_BOT_DB=data/demo.sqlite3 streamlit run dashboard/app.py
     docker compose --profile demo up -d             # то же в Docker: дашборд на http://localhost:8502
 
 Имена составлены случайно из частых имён и фамилий; ссылок на страницы ВКонтакте у демо-кандидатов нет.

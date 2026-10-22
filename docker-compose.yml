@@ -18,7 +18,10 @@ name: gim-volunteer-bot
 x-app: &app
   build: .
   image: gim-volunteer-bot:latest
-  env_file: .env
+  # .env необязателен: без него поднимется демонстрация, бот без ключей не запустится и скажет об этом.
+  env_file:
+    - path: .env
+      required: false
   environment:
     # Корневой сертификат Минцифры для GigaChat уже в репозитории — путь из .env здесь не нужен.
     GIGACHAT_CA_BUNDLE: /app/config/certs/russian_trusted_root_ca.pem
@@ -55,7 +58,6 @@ services:
     # Отдельная база с вымышленными кандидатами: настоящие анкеты в демонстрации не участвуют.
     environment:
       GIM_BOT_DB: /app/data/demo.sqlite3
-      GIM_DEMO: "1"
     command: >
       sh -c "python scripts/make_demo.py && streamlit run dashboard/app.py --server.address 0.0.0.0
       --server.port 8502 --server.headless true --browser.gatherUsageStats false"
@@ -65,7 +67,9 @@ services:
   https:
     image: caddy:2
     profiles: ["https"]
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "80:80"
       - "443:443"

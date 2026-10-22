@@ -18,3 +18,6 @@ venv/
 # Streamlit и Excel
 .streamlit/secrets.toml
 ~$*
+
+# Архивы для отправки (собираются командой git archive, см. README)
+dist/

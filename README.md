@@ -8,6 +8,18 @@ LLM (GigaChat) оценивает анкету по рубрике музея, �
 Цель — продукт «под ключ»: в НКО нет программистов и аналитиков, поэтому бот и дашборд должны
 работать без постоянной поддержки, а интерфейс — быть понятным человеку без знаний статистики.
 
+## Как запустить
+
+Нужен только [Docker](https://www.docker.com/products/docker-desktop/). Папку проекта держите в пути без русских букв
+и пробелов (например, `C:\gim-bot`) — иначе Docker не соберёт образ.
+
+```bash
+docker compose --profile demo up -d --build demo     # дашборд на вымышленных кандидатах: http://localhost:8502
+```
+
+Для работы с настоящим сообществом ВКонтакте: скопируйте `.env.example` в `.env`, впишите ключи
+и запустите `docker compose up -d --build`. Пошагово — [docs/install.md](docs/install.md).
+
 ## Как это устроено
 
 ```
@@ -72,7 +84,7 @@ python scripts/check_setup.py           # проверить .env и ключи 
 
 ```bash
 python scripts/make_demo.py             # data/demo.sqlite3: 28 кандидатов, решения, опрос, версия модели
-GIM_BOT_DB=data/demo.sqlite3 GIM_DEMO=1 streamlit run dashboard/app.py --server.port 8502
+GIM_BOT_DB=data/demo.sqlite3 streamlit run dashboard/app.py --server.port 8502
 docker compose --profile demo up -d --build demo   # то же в Docker
 ```
 
