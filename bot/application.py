@@ -77,28 +77,48 @@ def to_candidate(answers):
     )
 
 
-def success_probability(scores, aggregated, llm, candidate, model_path=ROOT / "config" / "model.json"):
-    """P(успеха) по коэффициентам из шага 3. Пропущенный признак = среднее (вклад 0)."""
-    if not Path(model_path).exists() or aggregated["index"] is None:
-        return None
-    model = json.loads(Path(model_path).read_text(encoding="utf-8"))
+MODEL_FILE = ROOT / "config" / "model.json"
+
+
+def current_model(storage=None):
+    """Действующая модель успеха: последняя принятая версия из базы (дообучена на опросах, bot/retrain.py),
+    а пока её нет — config/model.json, обученная на прошлых наборах (scripts/model_success.py)."""
+    model = storage.active_model() if storage else None
+    if model is None and MODEL_FILE.exists():
+        model = json.loads(MODEL_FILE.read_text(encoding="utf-8"))
+    return model
+
+
+def model_features(answers, result):
+    """Признаки модели успеха по анкете бота и её оценке — те же, что у прошлых наборов в scripts/model_success.py."""
+    candidate = to_candidate(answers)
     features = {
-        "index": aggregated["index"],
+        "index": result.get("index"),
         "first_year_bach": int(candidate["first_year_bach"]),
-        "cat_museum_practice": int(bool(llm and llm.get("ok") and "museum_practice" in llm["categories"])),
+        "cat_museum_practice": int("museum_practice" in (result.get("categories") or {})),
         "friend": int(candidate["source"] == "Рекомендации друзей"),
     }
-    for factor, value in aggregated["factors"].items():
+    for factor, value in (result.get("factors") or {}).items():
         features[f"F_{factor}"] = value
+    return features
 
+
+def success_probability(features, model):
+    """P(успеха) по коэффициентам модели. Пропущенный признак = среднее (вклад 0)."""
+    if model is None or is_missing(features.get("index")):
+        return None
     logit = model["coefficients"]["intercept"]
     for name in model["features"]:
         value = features.get(name)
-        if value is None:
+        if is_missing(value):
             continue
         standardized = (value - model["mean"][name]) / (model["std"][name] or 1)
         logit += model["coefficients"][name] * standardized
     return round(1 / (1 + math.exp(-logit)), 2)
+
+
+def is_missing(value):
+    return value is None or value != value   # value != value — проверка на NaN
 
 
 def normalize_name(text):
@@ -114,8 +134,9 @@ def fio_matches_vk(fio, vk_name):
     return bool(fio_words & vk_words)
 
 
-def score_application(answers, provider, runs=3, vk_profile=None):
-    """vk_profile — признаки страницы ВК из bot.vk_profile.analyze_profile (или None, если не получили)."""
+def score_application(answers, provider, runs=3, vk_profile=None, model=None):
+    """vk_profile — признаки страницы ВК из bot.vk_profile.analyze_profile (или None, если не получили);
+    model — модель успеха (current_model), по умолчанию config/model.json."""
     rubric = load_rubric()
     candidate = to_candidate(answers)
     profile = vk_profile or {}
@@ -133,14 +154,14 @@ def score_application(answers, provider, runs=3, vk_profile=None):
     scores = item_scores(candidate, rubric, llm)
     aggregated = aggregate(scores, rubric)
     result = dict(scores=scores, factors=aggregated["factors"], index=aggregated["index"],
-                  grade=aggregated["grade"], coverage=aggregated["coverage"],
-                  p_success=success_probability(scores, aggregated, llm, candidate),
+                  grade=aggregated["grade"], coverage=aggregated["coverage"], p_success=None,
                   flags=[], summary="", recommended_direction="", interview_questions=[], categories={})
     if llm:
         result["flags"] = llm["flags"]
     if llm and llm.get("ok"):
         result.update(summary=llm["summary"], recommended_direction=llm["recommended_direction"],
                       interview_questions=llm["interview_questions"], categories=llm["categories"])
+    result["p_success"] = success_probability(model_features(answers, result), model or current_model())
     result["yellow_flags"] = yellow_flags(answers) + vk_flags(answers, profile)
     if match is False:
         result["yellow_flags"].insert(0, "ФИО не совпадает с профилем ВК")
