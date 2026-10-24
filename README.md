@@ -19,6 +19,7 @@ docker compose --profile demo up -d --build demo     # дашборд на вы�
 
 Для работы с настоящим сообществом ВКонтакте: скопируйте `.env.example` в `.env`, впишите ключи
 и запустите `docker compose up -d --build`. Пошагово — [docs/install.md](docs/install.md).
+Как пользоваться ботом и дашбордом — [docs/user-manual.md](docs/user-manual.md).
 
 ## Как это устроено
 
@@ -90,13 +91,15 @@ docker compose --profile demo up -d --build demo   # то же в Docker
 
 ## Данные и модель (исторические анкеты)
 
-Исходные таблицы музея передаются отдельно и кладутся куда угодно вне репозитория:
+Таблицы музея кладутся в `data/history/` (в git не попадают), каждый лист перечислен в `config/history.yaml`.
+Загрузка — одной командой, она по очереди запускает три скрипта:
 
 ```bash
-python scripts/clean_anketa.py --in2024 "Анкеты 2024 осень.xlsx" --in2025 "Анкеты 2025 весна.xlsx" --out data
-python scripts/score_anketa.py --provider auto     # LLM-оценки 112 анкет (≈ 340 вызовов, кэшируются)
-python scripts/model_success.py                    # факторный анализ и модель → config/model.json
+python scripts/import_history.py          # clean_anketa.py → score_anketa.py (GigaChat) → model_success.py
+python scripts/import_history.py --no-llm # без GigaChat: только пункты по правилам
 ```
+
+Как добавить набор этого года и обновлять часы активности — [docs/user-manual.md](docs/user-manual.md), раздел 7.
 
 Что известно на сейчас (112 анкет, 44 взятых волонтёра с часами активности):
 

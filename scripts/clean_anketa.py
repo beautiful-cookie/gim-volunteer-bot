@@ -1,10 +1,10 @@
-"""Сведение и очистка исторических анкет волонтёров ГИМ (осень 2024, весна 2025).
+"""Сведение и очистка таблиц музея с прошлыми наборами волонтёров.
 
-Три листа исходных таблиц сводятся в одну таблицу «одна строка — один кандидат»,
-значения приводятся к единому виду, каждое смысловое исправление пишется в журнал.
+Листы исходных таблиц (список — в config/history.yaml, файлы — в data/history/) сводятся в одну таблицу
+«одна строка — один кандидат», значения приводятся к единому виду, каждое смысловое исправление пишется в журнал.
 
-Запуск:
-    python scripts/clean_anketa.py --in2024 "Анкеты 2024 осень.xlsx" --in2025 "Анкеты 2025 весна.xlsx" --out data
+Запуск (обычно через scripts/import_history.py, который заодно оценивает анкеты и переобучает модель):
+    python scripts/clean_anketa.py
 
 Результат в папке --out:
     anketa_clean.xlsx  — листы «Анкеты», «Исправления», «Вопросы представителю», «Словарь», «Исходные данные»
@@ -20,18 +20,22 @@ import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-# Дата выгрузки таблиц: на неё посчитаны формулы TODAY() в листах 2024 года.
-REF_DATE = dt.date(2026, 10, 21)
+ROOT = Path(__file__).resolve().parent.parent
 
-SHEETS = [
-    dict(file="2024", sheet="Очно 30.10", prefix="O24", cohort="2024-осень", interview_format="очно",
-         interview_date=dt.date(2024, 10, 30), start=dt.date(2024, 11, 1), start_assumed=False),
-    dict(file="2024", sheet="Дистант 29.10", prefix="D24", cohort="2024-осень", interview_format="дистанционно",
-         interview_date=dt.date(2024, 10, 29), start=dt.date(2024, 11, 1), start_assumed=False),
-    # Дата старта весеннего набора 2025 в таблице не указана — принята условно, см. «Вопросы представителю».
-    dict(file="2025", sheet="Ответы на форму (1)", prefix="F25", cohort="2025-весна", interview_format=None,
-         interview_date=dt.date(2025, 3, 1), start=dt.date(2025, 4, 1), start_assumed=True),
-]
+# Дата, на которую в таблицах актуальны «Еще состоит» и «Активность» (на неё же посчитаны формулы TODAY()
+# в листах 2024 года). Задаётся в config/history.yaml (ref_date), main() её подставляет.
+REF_DATE = dt.date.today()
+
+
+def load_history_config(path):
+    """config/history.yaml → (дата актуальности таблиц, список листов)."""
+    import yaml
+    config = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    tables = []
+    for table in config["tables"]:
+        tables.append(dict(table, interview_format=table.get("interview_format") or None,
+                           start_assumed=bool(table.get("start_assumed"))))
+    return config.get("ref_date") or dt.date.today(), tables
 
 # Столбцы исходных листов ищем по началу заголовка: в листах они стоят в разном порядке.
 FIELDS = [
@@ -536,11 +540,15 @@ def apply_manual_fixes(rec, fixes, log, notes):
         log.fix(rec, fix["field"], value, rec[fix["field"]], f"ручная правка: {fix.get('reason', 'фрагмент удалён')}")
 
 
-def build(paths, fixes=()):
+def build(folder, tables, fixes=()):
+    """folder — папка с таблицами (data/history), tables — листы из config/history.yaml."""
     log = Log()
     records, raw_rows = [], []
-    for cfg in SHEETS:
-        for n, (row, raw, header, values) in enumerate(read_sheet(paths[cfg["file"]], cfg), 1):
+    for cfg in tables:
+        path = Path(folder) / cfg["file"]
+        if not path.exists():
+            raise SystemExit(f"Нет файла {path}: положите таблицу в {folder} или поправьте config/history.yaml")
+        for n, (row, raw, header, values) in enumerate(read_sheet(path, cfg), 1):
             rec = dict(id=f"{cfg['prefix']}-{n:03d}", cohort=cfg["cohort"], src_sheet=cfg["sheet"], src_row=row,
                        interview_format=cfg["interview_format"] or "")
             flags, notes = [], []
@@ -677,15 +685,17 @@ def write_xlsx(path, sheets):
 
 
 def main():
+    global REF_DATE
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--in2024", required=True)
-    ap.add_argument("--in2025", required=True)
-    ap.add_argument("--out", default="data")
+    ap.add_argument("--config", default=str(ROOT / "config" / "history.yaml"))
+    ap.add_argument("--folder", default=str(ROOT / "data" / "history"), help="где лежат таблицы музея")
+    ap.add_argument("--out", default=str(ROOT / "data"))
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    fixes = load_manual_fixes(Path(__file__).resolve().parent.parent / "data" / "manual_fixes.yaml")
-    df, log, raw = build({"2024": a.in2024, "2025": a.in2025}, fixes)
+    REF_DATE, tables = load_history_config(a.config)
+    fixes = load_manual_fixes(ROOT / "data" / "manual_fixes.yaml")
+    df, log, raw = build(a.folder, tables, fixes)
     df.to_csv(out / "anketa_clean.csv", index=False, encoding="utf-8-sig")
     write_xlsx(out / "anketa_clean.xlsx", {
         "Анкеты": df, "Исправления": log, "Вопросы представителю": questions(df),

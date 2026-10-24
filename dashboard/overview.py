@@ -171,5 +171,5 @@ def empty_state(on_show_history):
     with st.container(key="card_pink_empty"):
         st.markdown("### Анкет пока нет")
         st.html('<p class="lead" style="margin:0 0 1rem">Здесь появятся анкеты из бота ВКонтакте. '
-                'Пример — наборы 2024–2025.</p>')
-        st.button("Открыть наборы 2024–2025", type="primary", on_click=on_show_history)
+                'Пока можно посмотреть прошлые наборы.</p>')
+        st.button("Открыть прошлые наборы", type="primary", on_click=on_show_history)

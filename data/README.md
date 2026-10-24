@@ -7,8 +7,9 @@
 
 | Файл | Откуда берётся |
 |---|---|
-| `anketa_clean.xlsx`, `anketa_clean.csv` | `python scripts/clean_anketa.py --in2024 "Анкеты 2024 осень.xlsx" --in2025 "Анкеты 2025 весна.xlsx" --out data` |
-| `scored.xlsx` | `python scripts/score_anketa.py --provider auto` (нужен ключ GigaChat в `.env`) |
+| `history/` | таблицы музея с прошлыми наборами; список листов — `config/history.yaml` |
+| `anketa_clean.xlsx`, `anketa_clean.csv` | `python scripts/import_history.py` (шаг 1 — очистка) |
+| `scored.xlsx` | `python scripts/import_history.py` (шаг 2 — оценка, нужен ключ GigaChat в `.env`) |
 | `llm_cache/` | кэш ответов GigaChat: повторный прогон тех же анкет бесплатный |
 | `model_report.xlsx` | `python scripts/model_success.py`; коэффициенты пишутся в `config/model.json` |
 | `bot.sqlite3` | база бота: диалоги, отправленные анкеты, решения кураторов из дашборда |

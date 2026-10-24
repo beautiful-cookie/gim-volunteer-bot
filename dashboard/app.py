@@ -31,7 +31,7 @@ from dashboard.weights import factor_defaults, factors_with_data, item_weights  
 from scorer.llm import load_env  # noqa: E402
 
 BOT_SOURCE = "Текущий набор"
-HISTORY_SOURCE = "Наборы 2024–2025"
+HISTORY_SOURCE = "Прошлые наборы"
 
 # Факторы, которые куратору не показываем ни в одном наборе (решение команды).
 # В балл анкеты они по-прежнему входят с весами из config/rubric.yaml.
@@ -127,7 +127,7 @@ df["decision"] = [decisions.get(key, ("не решено", ""))[0] for key in df
 df = df.sort_values("index", ascending=False).reset_index(drop=True)
 df["place"] = range(1, len(df) + 1)
 
-excel_name = "kandidaty_bot.xlsx" if source == BOT_SOURCE else "kandidaty_2024-2025.xlsx"
+excel_name = "kandidaty_bot.xlsx" if source == BOT_SOURCE else "kandidaty_proshlye_nabory.xlsx"
 excel_bytes = build_excel(df, factors, items, decisions)
 st.sidebar.download_button("Скачать Excel", data=excel_bytes, file_name=excel_name, type="primary",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

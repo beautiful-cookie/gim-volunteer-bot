@@ -67,7 +67,7 @@ class Chat:
 def scripted(dialog, storage, provider):
     chat = Chat(dialog, auto_inline=dialog.ask_inline is not None)
     chat.send("Привет")
-    assert chat.says("бот волонтёрской программы")
+    assert chat.says("На связи Государственный исторический музей")
     chat.press("Начать анкету")
     chat.press("Даю согласие")
     chat.send("Иванова")                                   # одно слово — ошибка

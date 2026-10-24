@@ -103,7 +103,7 @@ def model_block(versions):
 
     accepted = versions[versions["accepted"] == 1] if not versions.empty else versions
     if accepted.empty:
-        st.html('<p><b>Сейчас работает:</b> исходная модель по наборам 2024–2025.</p>')
+        st.html('<p><b>Сейчас работает:</b> исходная модель по прошлым наборам.</p>')
     else:
         last = accepted.iloc[-1]
         n_survey, n_history = int(last["n_survey"]), int(last["n_history"])
